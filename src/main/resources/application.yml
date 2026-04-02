@@ -1,0 +1,110 @@
+server:
+  port: 18023
+
+# 节点配置
+qdns:
+  node:
+    # 手动指定节点IP，未配置时自动获取本机IP
+    # 多网卡环境下建议手动指定，确保与Redis中的设备列表key一致
+    address: 192.168.1.37
+
+spring:
+  application:
+    name: qdns
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${qdns.nacos.server-addr}
+        namespace: ${qdns.nacos.namespace}
+        group: DEFAULT_GROUP
+        enabled: ${qdns.nacos.enabled}
+      config:
+        server-addr: ${qdns.nacos.server-addr}
+        namespace: ${qdns.nacos.namespace}
+        file-extension: yml
+        enabled: ${qdns.nacos.enabled}
+  redis:
+    host: ${qdns.redis.host}
+    port: ${qdns.redis.port}
+    password: ${qdns.redis.password}
+    database: 8
+    timeout: 5000ms
+    lettuce:
+      pool:
+        max-active: 20
+        max-idle: 10
+        min-idle: 5
+        max-wait: 3000ms
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+# SNMP采集配置
+snmp:
+  default-protocol: SNMPv3
+  sm:
+    legacy-mode: true
+  v3:
+    username: ${qdns.snmp.v3-username}
+    auth-password: ${qdns.snmp.v3-auth-password}
+    priv-password: ${qdns.snmp.v3-priv-password}
+    auth-protocol: SHA
+    priv-protocol: AES128
+  v2c:
+    community-read: ${qdns.snmp.v2-community-read}
+    community-write: ${qdns.snmp.v2-community-write}
+  timeout: 3000
+  retries: 2
+  max-repetitions: 20
+  trap:
+    enabled: ${qdns.snmp.trap.enabled:true}
+    listen-port: ${qdns.snmp.trap.listen-port:1162}
+    auto-set-target: ${qdns.snmp.trap.auto-set-target:true}
+    target-port: ${qdns.snmp.trap.target-port:1162}
+
+# 告警配置
+alarm:
+  enabled: ${qdns.alarm.enabled:true}
+  platform-url: ${qdns.alarm.platform-url:}
+  retry-count: ${qdns.alarm.retry-count:3}
+  retry-interval-ms: ${qdns.alarm.retry-interval-ms:1000}
+
+# 采集调度配置
+collector:
+  scan-interval: ${qdns.collector.scan-interval}
+  initial-delay: 10
+  thread-pool-size: 10
+  batch-size: 50
+  # true：scan-interval 仅高频指标；full-scan-cron 全量（接口表、VPN 表等）
+  split-schedule-enabled: ${qdns.collector.split-schedule-enabled:true}
+  # 全量采集 Cron，默认每天 02:00
+  full-scan-cron: ${qdns.collector.full-scan-cron:0 0 2 * * ?}
+
+# Redis key配置
+# 管理平台分配设备列表的key格式为 ip:端口，prefix为空表示直接使用裸key
+redis-key:
+  device-list-prefix: ""
+  device-status-prefix: "qdns:status:"
+  device-status-ttl: 300
+
+# OID配置
+oid:
+  enterprise-prefix: "1.3.6.1.4.1.99999"
+
+# 日志配置
+logging:
+  level:
+    com.qasky.qdns: DEBUG
+    org.snmp4j: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always

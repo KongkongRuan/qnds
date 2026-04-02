@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QDNS 服务节点调试界面</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif; background: #f0f2f5; color: #333; }
+        .header { background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%); color: white; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+        .header h1 { font-size: 20px; font-weight: 600; }
+        .header .node-info { font-size: 13px; opacity: 0.9; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 16px; }
+        .tabs { display: flex; gap: 2px; background: #fff; border-radius: 8px 8px 0 0; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .tab { padding: 12px 24px; cursor: pointer; font-size: 14px; font-weight: 500; background: #fafafa; border: none; color: #666; transition: all 0.2s; }
+        .tab:hover { background: #e8f0fe; color: #1a73e8; }
+        .tab.active { background: #fff; color: #1a73e8; border-bottom: 3px solid #1a73e8; }
+        .panel { background: #fff; border-radius: 0 0 8px 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: none; min-height: 400px; }
+        .panel.active { display: block; }
+        .form-row { display: flex; gap: 12px; margin-bottom: 12px; align-items: flex-end; flex-wrap: wrap; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group label { font-size: 12px; color: #666; font-weight: 500; }
+        .form-group input, .form-group select, .form-group textarea { padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px; outline: none; transition: border-color 0.2s; }
+        .form-group input:focus, .form-group select:focus { border-color: #1a73e8; box-shadow: 0 0 0 2px rgba(26,115,232,0.2); }
+        .btn { padding: 8px 20px; border: none; border-radius: 4px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: #1a73e8; color: white; }
+        .btn-primary:hover { background: #1557b0; }
+        .btn-success { background: #34a853; color: white; }
+        .btn-success:hover { background: #2d8f47; }
+        .btn-danger { background: #ea4335; color: white; }
+        .btn-danger:hover { background: #c5221f; }
+        .btn-warning { background: #fbbc04; color: #333; }
+        .btn-warning:hover { background: #f9ab00; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e8e8e8; }
+        th { background: #fafafa; font-weight: 600; color: #555; font-size: 12px; text-transform: uppercase; }
+        tr:hover { background: #f5f7fa; }
+        .status-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+        .status-online { background: #e6f7e9; color: #34a853; }
+        .status-offline { background: #fce8e6; color: #ea4335; }
+        .result-box { background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; margin-top: 12px; max-height: 500px; overflow: auto; font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
+        .stat-card { background: linear-gradient(135deg, #f8f9fa 0%, #fff 100%); border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; }
+        .stat-card .label { font-size: 12px; color: #888; margin-bottom: 4px; }
+        .stat-card .value { font-size: 24px; font-weight: 700; color: #1a73e8; }
+        .stat-card .value.green { color: #34a853; }
+        .stat-card .value.red { color: #ea4335; }
+        .loading { text-align: center; padding: 40px; color: #999; }
+        .alert { padding: 12px 16px; border-radius: 4px; margin-bottom: 12px; font-size: 13px; }
+        .alert-info { background: #e8f0fe; color: #1a73e8; border-left: 4px solid #1a73e8; }
+        .alert-error { background: #fce8e6; color: #ea4335; border-left: 4px solid #ea4335; }
+        .alert-success { background: #e6f7e9; color: #34a853; border-left: 4px solid #34a853; }
+        .device-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .detail-section { background: #fafafa; border-radius: 6px; padding: 16px; }
+        .detail-section h3 { font-size: 14px; margin-bottom: 10px; color: #1a73e8; border-bottom: 2px solid #1a73e8; padding-bottom: 6px; }
+        .detail-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
+        .detail-row .key { color: #888; }
+        .detail-row .val { font-weight: 500; }
+        .progress-bar { height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden; margin-top: 4px; }
+        .progress-bar .fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+        .fill-green { background: #34a853; }
+        .fill-yellow { background: #fbbc04; }
+        .fill-red { background: #ea4335; }
+        .pager { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; padding: 10px 0; font-size: 13px; color: #555; border-top: 1px solid #e8e8e8; }
+        .pager .pager-info { color: #888; }
+        .pager .btn-sm { padding: 4px 12px; font-size: 12px; }
+        .alarm-critical { background: #fce8e6; color: #c5221f; }
+        .alarm-major { background: #fef3e0; color: #e65100; }
+        .alarm-minor { background: #fff8e1; color: #f9a825; }
+        .alarm-info { background: #e8f0fe; color: #1a73e8; }
+        .alarm-recover { background: #e6f7e9; color: #34a853; }
+        .btn-toggle-pwd { margin-left:4px; padding:4px 8px; border:1px solid #d9d9d9; border-radius:4px; background:#fff; cursor:pointer; font-size:14px; }
+        .btn-toggle-pwd:hover { background:#f5f5f5; }
+    </style>
+</head>
+<body>
+<div class="header">
+    <div>
+        <h1>QDNS 服务节点调试界面</h1>
+        <div class="node-info" id="nodeInfoBar">加载中...</div>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <button class="btn btn-success" onclick="triggerCollectAll()">立即采集</button>
+        <button class="btn btn-warning" onclick="loadStats()">刷新状态</button>
+    </div>
+</div>
+
+<div class="container">
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('dashboard')">概览</div>
+        <div class="tab" onclick="switchTab('devices')">设备管理</div>
+        <div class="tab" onclick="switchTab('snmpTool')">SNMP工具</div>
+        <div class="tab" onclick="switchTab('oidBrowser')">OID浏览</div>
+        <div class="tab" onclick="switchTab('results')">采集结果</div>
+        <div class="tab" onclick="switchTab('alarms')">接收告警</div>
+    </div>
+
+    <!-- Dashboard -->
+    <div class="panel active" id="panel-dashboard">
+        <div class="stats-grid" id="statsGrid"></div>
+        <h3 style="margin:16px 0 8px;font-size:15px;color:#333;">设备列表</h3>
+        <div id="dashboardDeviceList"></div>
+        <div id="dashboardPager"></div>
+    </div>
+
+    <!-- Devices -->
+    <div class="panel" id="panel-devices">
+        <h3 style="margin-bottom:12px;">添加设备</h3>
+        <div class="form-row">
+            <div class="form-group">
+                <label>设备IP</label>
+                <input type="text" id="addDevIp" placeholder="192.168.5.1" style="width:150px;">
+            </div>
+            <div class="form-group">
+                <label>SNMP端口</label>
+                <input type="text" id="addDevPort" value="161" style="width:80px;">
+            </div>
+            <div class="form-group">
+                <label>设备名称</label>
+                <input type="text" id="addDevName" placeholder="VPN-001" style="width:140px;">
+            </div>
+            <div class="form-group">
+                <label>厂家</label>
+                <select id="addDevMfr" style="width:110px;">
+                    <option value="QASKY">QASKY</option>
+                    <option value="ThirdParty-A">ThirdParty-A</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>设备类型</label>
+                <select id="addDevType" style="width:120px;">
+                    <option value="QVPN">QVPN</option>
+                    <option value="QSW">QSW</option>
+                    <option value="quantum_vpn">quantum_vpn</option>
+                    <option value="quantum_encryptor">quantum_encryptor</option>
+                    <option value="third_party_vpn">third_party_vpn</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>协议</label>
+                <select id="addDevProtocol" style="width:100px;" onchange="syncAddV3Row()">
+                    <option value="SNMPv3">SNMPv3</option>
+                    <option value="SNMPv2c">SNMPv2c</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row" id="addV3Row">
+            <div class="form-group">
+                <label>SNMPv3 用户名</label>
+                <input type="text" id="addDevV3User" value="qasky" autocomplete="off" style="width:100px;">
+            </div>
+            <div class="form-group">
+                <label>认证协议</label>
+                <select id="addDevV3AuthProto" style="width:130px;">
+                    <option value="SHA">SHA</option>
+                    <option value="MD5">MD5</option>
+                    <option value="HMAC128SHA224">HMAC128SHA224</option>
+                    <option value="HMAC192SHA256">HMAC192SHA256</option>
+                    <option value="SM3">SM3(国密)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>认证密码</label>
+                <div style="display:flex;align-items:center;">
+                    <input type="password" id="addDevV3Auth" value="qasky1234" autocomplete="new-password" style="width:120px;">
+                    <button type="button" class="btn-toggle-pwd" onclick="togglePwd('addDevV3Auth', this)">👁</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>加密协议</label>
+                <select id="addDevV3PrivProto" style="width:130px;">
+                    <option value="AES128">AES128</option>
+                    <option value="AES192">AES192 (标准)</option>
+                    <option value="AES256">AES256 (标准)</option>
+                    <option value="AES192-CISCO">AES192 (Cisco/pysnmp)</option>
+                    <option value="AES256-CISCO">AES256 (Cisco/pysnmp)</option>
+                    <option value="DES">DES</option>
+                    <option value="SM4">SM4(国密)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>加密密码</label>
+                <div style="display:flex;align-items:center;">
+                    <input type="password" id="addDevV3Priv" value="QaSky20191818" autocomplete="new-password" style="width:140px;">
+                    <button type="button" class="btn-toggle-pwd" onclick="togglePwd('addDevV3Priv', this)">👁</button>
+                </div>
+            </div>
+        </div>
+        <div class="form-row" id="addTrapRow">
+            <div class="form-group">
+                <label>Trap设置协议</label>
+                <select id="addTrapProtocol" style="width:140px;" onchange="syncAddTrapCommunityRow()">
+                    <option value="">跟随设备协议</option>
+                    <option value="SNMPv2c">SNMPv2c</option>
+                    <option value="SNMPv3">SNMPv3</option>
+                </select>
+            </div>
+            <div class="form-group" id="addTrapCommunityGroup" style="display:none;">
+                <label>Write Community</label>
+                <input type="text" id="addTrapCommunity" value="private" style="width:120px;">
+            </div>
+            <span style="font-size:11px;color:#999;align-self:center;">添加设备时通过此协议向设备下发Trap目标地址</span>
+        </div>
+        <div class="form-row">
+            <button class="btn btn-primary" onclick="addDevice()">添加</button>
+            <button class="btn btn-success" onclick="addVpnSimDevices()">添加VPN-Sim设备</button>
+        </div>
+        <h3 style="margin:20px 0 12px;">自动发现（UDP/SNMP）</h3>
+        <p style="font-size:12px;color:#888;margin-bottom:10px;">填写网络地址与前缀长度，对网段内主机发送 SNMP 探测（sysDescr/sysName）。最多扫描 1024 个主机地址。SNMPv2c 可填 community；选 SNMPv3 时显示用户名与认证/加密密码（默认同全局 snmp.v3 配置）。</p>
+        <div class="form-row">
+            <div class="form-group">
+                <label>网络地址</label>
+                <input type="text" id="discoverNet" placeholder="192.168.5.0" style="width:140px;">
+            </div>
+            <div class="form-group">
+                <label>前缀长度</label>
+                <input type="number" id="discoverPrefix" value="24" min="0" max="32" style="width:72px;">
+            </div>
+            <div class="form-group">
+                <label>SNMP端口</label>
+                <input type="text" id="discoverPort" value="161" style="width:72px;">
+            </div>
+            <div class="form-group">
+                <label>Community (v2c)</label>
+                <input type="text" id="discoverCommunity" placeholder="默认读配置" style="width:120px;">
+            </div>
+            <div class="form-group">
+                <label>探测协议</label>
+                <select id="discoverProtocol" style="width:100px;" onchange="syncDiscoverV3Row()">
+                    <option value="SNMPv2c">SNMPv2c</option>
+                    <option value="SNMPv3">SNMPv3</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>超时(ms)</label>
+                <input type="number" id="discoverTimeout" value="500" min="100" max="5000" style="width:72px;">
+            </div>
+        </div>
+        <div class="form-row" id="discoverV3Row" style="display:none;">
+            <div class="form-group">
+                <label>SNMPv3 用户名</label>
+                <input type="text" id="discoverV3User" value="qasky" autocomplete="off" style="width:100px;">
+            </div>
+            <div class="form-group">
+                <label>认证协议</label>
+                <select id="discoverV3AuthProto" style="width:130px;">
+                    <option value="SHA">SHA</option>
+                    <option value="MD5">MD5</option>
+                    <option value="HMAC128SHA224">HMAC128SHA224</option>
+                    <option value="HMAC192SHA256">HMAC192SHA256</option>
+                    <option value="SM3">SM3(国密)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>认证密码</label>
+                <div style="display:flex;align-items:center;">
+                    <input type="password" id="discoverV3Auth" value="qasky1234" autocomplete="new-password" style="width:120px;">
+                    <button type="button" class="btn-toggle-pwd" onclick="togglePwd('discoverV3Auth', this)">👁</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>加密协议</label>
+                <select id="discoverV3PrivProto" style="width:130px;">
+                    <option value="AES128">AES128</option>
+                    <option value="AES192">AES192 (标准)</option>
+                    <option value="AES256">AES256 (标准)</option>
+                    <option value="AES192-CISCO">AES192 (Cisco/pysnmp)</option>
+                    <option value="AES256-CISCO">AES256 (Cisco/pysnmp)</option>
+                    <option value="DES">DES</option>
+                    <option value="SM4">SM4(国密)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>加密密码</label>
+                <div style="display:flex;align-items:center;">
+                    <input type="password" id="discoverV3Priv" value="QaSky20191818" autocomplete="new-password" style="width:140px;">
+                    <button type="button" class="btn-toggle-pwd" onclick="togglePwd('discoverV3Priv', this)">👁</button>
+                </div>
+            </div>
+        </div>
+        <div class="form-row">
+            <button class="btn btn-warning" id="btnDiscover" onclick="startDiscover()">开始扫描</button>
+            <button class="btn btn-primary" id="btnDiscoverAdd" onclick="addSelectedDiscovered()" disabled>添加选中设备</button>
+            <button type="button" class="btn btn-success" id="btnDiscoverSelectAll" onclick="discoverSelectAll()" disabled>全选全部</button>
+            <button type="button" class="btn" id="btnDiscoverClearSel" onclick="discoverClearSelection()" disabled style="background:#eceff1;color:#37474f;">取消全选</button>
+        </div>
+        <div id="discoverStatus" style="font-size:13px;color:#666;margin-bottom:8px;"></div>
+        <div id="discoverTableWrap"></div>
+        <div id="discoverPager"></div>
+        <div id="deviceAlert"></div>
+        <h3 style="margin:16px 0 8px;font-size:15px;color:#333;">设备列表</h3>
+        <div id="deviceTable"></div>
+        <div id="devicePager"></div>
+    </div>
+
+    <!-- SNMP Tool -->
+    <div class="panel" id="panel-snmpTool">
+        <h3 style="margin-bottom:12px;">SNMP调试工具</h3>
+        <div class="form-row">
+            <div class="form-group">
+                <label>快速选择设备</label>
+                <select id="snmpDeviceSelect" style="width:260px;" onchange="fillSnmpFromDevice()">
+                    <option value="">-- 手动输入 --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>目标IP</label>
+                <input type="text" id="snmpHost" placeholder="192.168.5.1" style="width:150px;">
+            </div>
+            <div class="form-group">
+                <label>端口</label>
+                <input type="text" id="snmpPort" value="161" style="width:80px;">
+            </div>
+            <div class="form-group">
+                <label>协议</label>
+                <select id="snmpProtocol" style="width:100px;" onchange="syncSnmpV3Row()">
+                    <option value="SNMPv3">SNMPv3</option>
+                    <option value="SNMPv2c">SNMPv2c</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>OID</label>
+                <input type="text" id="snmpOid" placeholder="1.3.6.1.2.1.1.1.0" style="width:250px;" value="1.3.6.1.2.1.1.1.0">
+            </div>
+        </div>
+        <div class="form-row" id="snmpV3Row">
+            <div class="form-group">
+                <label>SNMPv3 用户名</label>
+                <input type="text" id="snmpV3User" value="qasky" autocomplete="off" style="width:100px;">
+            </div>
+            <div class="form-group">
+                <label>认证协议</label>
+                <select id="snmpV3AuthProto" style="width:130px;">
+                    <option value="SHA">SHA</option>
+                    <option value="MD5">MD5</option>
+                    <option value="HMAC128SHA224">HMAC128SHA224</option>
+                    <option value="HMAC192SHA256">HMAC192SHA256</option>
+                    <option value="SM3">SM3(国密)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>认证密码</label>
+                <div style="display:flex;align-items:center;">
+                    <input type="password" id="snmpV3Auth" value="qasky1234" autocomplete="new-password" style="width:120px;">
+                    <button type="button" class="btn-toggle-pwd" onclick="togglePwd('snmpV3Auth', this)">👁</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>加密协议</label>
+                <select id="snmpV3PrivProto" style="width:130px;">
+                    <option value="AES128">AES128</option>
+                    <option value="AES192">AES192 (标准)</option>
+                    <option value="AES256">AES256 (标准)</option>
+                    <option value="AES192-CISCO">AES192 (Cisco/pysnmp)</option>
+                    <option value="AES256-CISCO">AES256 (Cisco/pysnmp)</option>
+                    <option value="DES">DES</option>
+                    <option value="SM4">SM4(国密)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>加密密码</label>
+                <div style="display:flex;align-items:center;">
+                    <input type="password" id="snmpV3Priv" value="QaSky20191818" autocomplete="new-password" style="width:140px;">
+                    <button type="button" class="btn-toggle-pwd" onclick="togglePwd('snmpV3Priv', this)">👁</button>
+                </div>
+            </div>
+        </div>
+        <div class="form-row" id="snmpV2cRow" style="display:none;">
+            <div class="form-group">
+                <label>读团体名</label>
+                <input type="text" id="snmpV2cCommunityRead" value="public" placeholder="默认public" style="width:120px;">
+            </div>
+            <div class="form-group">
+                <label>写团体名</label>
+                <input type="text" id="snmpV2cCommunityWrite" value="private" placeholder="默认private" style="width:120px;">
+            </div>
+        </div>
+        <div class="form-row">
+            <button class="btn btn-primary" onclick="snmpGet()">GET</button>
+            <button class="btn btn-success" onclick="snmpWalk()">WALK</button>
+        </div>
+        
+        <h4 style="margin:20px 0 12px; font-size:14px; color:#1a73e8; border-bottom: 1px solid #e0e0e0; padding-bottom: 4px;">SNMP SET 下发测试</h4>
+        <div id="snmpSetRows">
+            <div class="form-row snmp-set-row" data-idx="0">
+                <div class="form-group">
+                    <label>OID</label>
+                    <input type="text" class="set-oid" placeholder="1.3.6.1.4.1.99999.8.1.0" style="width:250px;">
+                </div>
+                <div class="form-group">
+                    <label>值类型</label>
+                    <select class="set-type" style="width:120px;">
+                        <option value="STRING">STRING</option>
+                        <option value="INTEGER">INTEGER</option>
+                        <option value="OID">OID</option>
+                        <option value="IPADDRESS">IPADDRESS</option>
+                        <option value="COUNTER">COUNTER</option>
+                        <option value="GAUGE">GAUGE</option>
+                        <option value="TIMETICKS">TIMETICKS</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>修改值</label>
+                    <input type="text" class="set-value" placeholder="输入要下发的值" style="width:200px;">
+                </div>
+                <div class="form-group" style="align-self:flex-end;">
+                    <button class="btn" onclick="removeSetRow(this)" style="background:#e0e0e0;color:#333;padding:4px 8px;" title="删除此行">✕</button>
+                </div>
+            </div>
+        </div>
+        <div class="form-row" style="gap:8px; margin-top:4px;">
+            <button class="btn" onclick="addSetRow()" style="background:#e8f0fe;color:#1a73e8;font-size:12px;">+ 添加一行</button>
+            <button class="btn btn-danger" onclick="snmpSet()">发送 SET 请求</button>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">
+                <input type="checkbox" id="setAutoVerify" checked> SET后自动回读验证
+            </label>
+        </div>
+
+        <div id="snmpSetHistory" style="margin-top:12px;display:none;">
+            <h4 style="font-size:13px;color:#666;margin-bottom:6px;">最近下发记录 <button class="btn" onclick="clearSetHistory()" style="background:#e0e0e0;color:#333;padding:2px 8px;font-size:11px;margin-left:8px;">清空</button></h4>
+            <div id="setHistoryList" style="max-height:150px;overflow-y:auto;"></div>
+        </div>
+
+        <div class="alert alert-info" style="margin-top:8px;">
+            常用OID: sysDescr=1.3.6.1.2.1.1.1.0 | sysUpTime=1.3.6.1.2.1.1.3.0 | CPU=1.3.6.1.4.1.2021.11.9.0 | 私有MIB=1.3.6.1.4.1.99999<br>
+            可写OID示例: 设备配置=1.3.6.1.4.1.99999.8.1.0 | 限流规则=1.3.6.1.4.1.99999.8.2.0 | 隧道1限流=1.3.6.1.4.1.99999.2.1.1.11.1
+        </div>
+        <div class="result-box" id="snmpResult">等待操作...</div>
+    </div>
+
+    <!-- OID Browser -->
+    <div class="panel" id="panel-oidBrowser">
+        <h3 style="margin-bottom:12px;">OID浏览器</h3>
+        <div class="form-row">
+            <div class="form-group">
+                <label>设备类型</label>
+                <select id="oidDevType" style="width:160px;">
+                    <option value="quantum_vpn">quantum_vpn</option>
+                    <option value="quantum_encryptor">quantum_encryptor</option>
+                    <option value="third_party_vpn">third_party_vpn</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" onclick="loadOids()">查询OID列表</button>
+        </div>
+        <div id="oidTable"></div>
+    </div>
+
+    <!-- Results -->
+    <div class="panel" id="panel-results">
+        <h3 style="margin-bottom:12px;">采集结果详情</h3>
+        <div class="form-row">
+            <div class="form-group">
+                <label>选择设备</label>
+                <select id="resultDeviceSelect" style="width:300px;" onchange="showDeviceDetail()">
+                    <option value="">-- 请选择设备 --</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" onclick="refreshResultList()">刷新列表</button>
+        </div>
+        <div id="deviceDetailView"></div>
+    </div>
+
+    <!-- Alarms -->
+    <div class="panel" id="panel-alarms">
+        <h3 style="margin-bottom:12px;">节点接收到的告警(Trap)</h3>
+        <div class="form-row">
+            <button class="btn btn-primary" onclick="loadAlarms()">刷新告警列表</button>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+                <input type="checkbox" id="alarmAutoRefresh" onchange="toggleAlarmAutoRefresh()"> 自动刷新(5秒)
+            </label>
+            <span id="alarmCount" style="font-size:13px;color:#1a73e8;font-weight:600;margin-left:8px;"></span>
+        </div>
+        <div class="alert alert-info" style="margin-top:4px;">告警缓存在节点内存中（最近100条），重启后清除。设备需将本节点设为Trap目标才能收到告警。</div>
+        <div id="alarmTable"></div>
+    </div>
+</div>
+
+<script>
+    const API = '';
+    window._deviceListPage = 0;
+    window._deviceListPageSize = 10;
+    window._dashboardDevicePage = 0;
+    window._dashboardDevicePageSize = 10;
+    window._discoverPage = 0;
+    window._discoverPageSize = 10;
+    window._discoverSelectedIdx = new Set();
+
+    function togglePwd(inputId, btn) {
+        const input = document.getElementById(inputId);
+        if (input.type === 'password') {
+            input.type = 'text';
+            btn.textContent = '🙈';
+        } else {
+            input.type = 'password';
+            btn.textContent = '👁';
+        }
+    }
+
+    function syncAddV3Row() {
+        const v3 = document.getElementById('addDevProtocol').value === 'SNMPv3';
+        document.getElementById('addV3Row').style.display = v3 ? 'flex' : 'none';
+    }
+    function syncAddTrapCommunityRow() {
+        const val = document.getElementById('addTrapProtocol').value;
+        document.getElementById('addTrapCommunityGroup').style.display = val === 'SNMPv2c' ? '' : 'none';
+    }
+    function syncDiscoverV3Row() {
+        const v3 = document.getElementById('discoverProtocol').value === 'SNMPv3';
+        document.getElementById('discoverV3Row').style.display = v3 ? 'flex' : 'none';
+    }
+    function syncSnmpV3Row() {
+        const v3 = document.getElementById('snmpProtocol').value === 'SNMPv3';
+        document.getElementById('snmpV3Row').style.display = v3 ? 'flex' : 'none';
+        document.getElementById('snmpV2cRow').style.display = v3 ? 'none' : 'flex';
+    }
+    function snmpV2cQuerySuffix() {
+        const readCommunity = document.getElementById('snmpV2cCommunityRead').value;
+        const writeCommunity = document.getElementById('snmpV2cCommunityWrite').value;
+        return '&communityRead=' + encodeURIComponent(readCommunity || '')
+            + '&communityWrite=' + encodeURIComponent(writeCommunity || '');
+    }
+
+    function snmpV3QuerySuffix() {
+        const u = document.getElementById('snmpV3User').value;
+        const a = document.getElementById('snmpV3Auth').value;
+        const p = document.getElementById('snmpV3Priv').value;
+        const ap = document.getElementById('snmpV3AuthProto').value;
+        const pp = document.getElementById('snmpV3PrivProto').value;
+        return '&v3Username=' + encodeURIComponent(u || '')
+            + '&v3AuthPassword=' + encodeURIComponent(a || '')
+            + '&v3PrivPassword=' + encodeURIComponent(p || '')
+            + '&v3AuthProtocol=' + encodeURIComponent(ap || '')
+            + '&v3PrivProtocol=' + encodeURIComponent(pp || '');
+    }
+
+    function switchTab(name) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        event.target.classList.add('active');
+        document.getElementById('panel-' + name).classList.add('active');
+        // 离开告警页时停止自动刷新
+        if (name !== 'alarms' && window._alarmAutoRefreshTimer) {
+            clearInterval(window._alarmAutoRefreshTimer);
+            window._alarmAutoRefreshTimer = null;
+            const chk = document.getElementById('alarmAutoRefresh');
+            if (chk) chk.checked = false;
+        }
+        if (name === 'dashboard') loadDashboard();
+        if (name === 'devices') {
+            loadDevices();
+            syncAddV3Row();
+            syncAddTrapCommunityRow();
+            syncDiscoverV3Row();
+        }
+        if (name === 'snmpTool') { syncSnmpV3Row(); loadSnmpDeviceSelect(); renderSetHistory(); }
+        if (name === 'results') refreshResultList();
+        if (name === 'alarms') loadAlarms();
+    }
+
+    async function apiCall(url, method = 'GET', body = null) {
+        const opts = { method, headers: { 'Content-Type': 'application/json' } };
+        if (body) opts.body = JSON.stringify(body);
+        try {
+            const r = await fetch(API + url, opts);
+            return await r.json();
+        } catch (e) {
+            return { code: 500, message: e.message };
+        }
+    }
+
+    async function loadNodeInfo() {
+        const info = await apiCall('/api/node/info');
+        document.getElementById('nodeInfoBar').textContent =
+            `节点: ${info.ip || '?'}:${info.port || '?'} | ${info.appName || ''} | Java ${info.javaVersion || '?'} | 内存: ${info.freeMemory || '?'}/${info.maxMemory || '?'}`;
+    }
+
+    async function loadStats() {
+        const stats = await apiCall('/api/collector/stats');
+        document.getElementById('nodeInfoBar').textContent =
+            `节点: ${stats.nodeKey || '?'} | 上次采集: ${stats.lastCollectCount || 0}台 / ${stats.lastCollectDuration || '-'} | 缓存: ${stats.cachedStatusCount || 0}`;
+    }
+
+    function renderPager(elId, page, size, total, kind) {
+        const el = document.getElementById(elId);
+        if (!el) return;
+        if (total === 0) {
+            el.innerHTML = '<div class="pager"><span class="pager-info">共 0 条</span></div>';
+            return;
+        }
+        const totalPages = Math.max(1, Math.ceil(total / size));
+        const p = Math.min(page, totalPages - 1);
+        const start = p * size + 1;
+        const end = Math.min((p + 1) * size, total);
+        const prevDis = p <= 0 ? 'disabled' : '';
+        const nextDis = p >= totalPages - 1 ? 'disabled' : '';
+        const onPrev = kind === 'device'
+            ? 'loadDevices(' + (p - 1) + ')'
+            : kind === 'discover'
+                ? 'renderDiscoverTable(' + (p - 1) + ')'
+                : 'loadDashboard(' + (p - 1) + ')';
+        const onNext = kind === 'device'
+            ? 'loadDevices(' + (p + 1) + ')'
+            : kind === 'discover'
+                ? 'renderDiscoverTable(' + (p + 1) + ')'
+                : 'loadDashboard(' + (p + 1) + ')';
+        const sizeSelectId = kind === 'device' ? 'devicePageSizeSel' : kind === 'discover' ? 'discoverPageSizeSel' : 'dashPageSizeSel';
+        const onSize = kind === 'device'
+            ? 'window._deviceListPageSize=parseInt(this.value,10);window._deviceListPage=0;loadDevices(0);'
+            : kind === 'discover'
+                ? 'window._discoverPageSize=parseInt(this.value,10);window._discoverPage=0;renderDiscoverTable(0);'
+                : 'window._dashboardDevicePageSize=parseInt(this.value,10);window._dashboardDevicePage=0;loadDashboard(0);';
+        el.innerHTML = `<div class="pager">
+                <span class="pager-info">第 ${start}–${end} 条，共 ${total} 条</span>
+                <span>每页</span>
+                <select id="${sizeSelectId}" style="padding:4px 8px;border-radius:4px;border:1px solid #d9d9d9;" onchange="${onSize}">
+                    <option value="10" ${size === 10 ? 'selected' : ''}>10</option>
+                    <option value="20" ${size === 20 ? 'selected' : ''}>20</option>
+                    <option value="50" ${size === 50 ? 'selected' : ''}>50</option>
+                </select>
+                <button type="button" class="btn btn-primary btn-sm" ${prevDis} onclick="${onPrev}">上一页</button>
+                <span>第 ${p + 1} / ${totalPages} 页</span>
+                <button type="button" class="btn btn-primary btn-sm" ${nextDis} onclick="${onNext}">下一页</button>
+            </div>`;
+    }
+
+    function syncDiscoverChkAll() {
+        const el = document.getElementById('discoverChkAll');
+        if (!el) return;
+        const list = window._discoverResults || [];
+        const p = window._discoverPage || 0;
+        const sz = window._discoverPageSize || 10;
+        const from = p * sz;
+        const to = Math.min(from + sz, list.length);
+        const set = window._discoverSelectedIdx || new Set();
+        let all = true;
+        let any = false;
+        for (let i = from; i < to; i++) {
+            if (set.has(i)) any = true;
+            else all = false;
+        }
+        el.checked = to > from && all;
+        el.indeterminate = any && !all && to > from;
+    }
+
+    function onDiscoverRowChk(idx, el) {
+        if (!window._discoverSelectedIdx) window._discoverSelectedIdx = new Set();
+        if (el.checked) window._discoverSelectedIdx.add(idx);
+        else window._discoverSelectedIdx.delete(idx);
+        syncDiscoverChkAll();
+    }
+
+    function renderDiscoverTable(page) {
+        if (typeof page === 'number' && page >= 0) window._discoverPage = page;
+        const list = window._discoverResults || [];
+        const total = list.length;
+        let p = window._discoverPage || 0;
+        const sz = window._discoverPageSize || 10;
+        const totalPages = total === 0 ? 0 : Math.ceil(total / sz);
+        if (total > 0 && totalPages > 0 && p >= totalPages) {
+            p = totalPages - 1;
+            window._discoverPage = p;
+        }
+        const from = p * sz;
+        const slice = list.slice(from, from + sz);
+        const set = window._discoverSelectedIdx || new Set();
+
+        if (total === 0) {
+            document.getElementById('discoverTableWrap').innerHTML = '';
+            renderPager('discoverPager', 0, sz, 0, 'discover');
+            return;
+        }
+
+        let html = '<table><tr><th><input type="checkbox" id="discoverChkAll" onchange="toggleDiscoverAll(this.checked)"></th><th>IP</th><th>端口</th><th>sysName</th><th>sysDescr</th><th>协议</th></tr>';
+        slice.forEach((h, j) => {
+            const i = from + j;
+            const ck = set.has(i) ? 'checked' : '';
+            html += `<tr>
+                    <td><input type="checkbox" class="discover-row-chk" data-idx="${i}" ${ck} onchange="onDiscoverRowChk(${i}, this)"></td>
+                    <td>${escapeHtml(h.deviceIp)}</td>
+                    <td>${escapeHtml(h.devicePort)}</td>
+                    <td>${escapeHtml(h.sysName || '-')}</td>
+                    <td style="max-width:360px;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(h.sysDescr || '')}">${escapeHtml((h.sysDescr || '-').substring(0, 80))}${(h.sysDescr && h.sysDescr.length > 80) ? '…' : ''}</td>
+                    <td>${escapeHtml(h.protocol)}</td>
+                </tr>`;
+        });
+        html += '</table>';
+        document.getElementById('discoverTableWrap').innerHTML = html;
+        syncDiscoverChkAll();
+        renderPager('discoverPager', p, sz, total, 'discover');
+    }
+
+    async function loadDashboard(page) {
+        if (typeof page === 'number' && page >= 0) window._dashboardDevicePage = page;
+        let p = window._dashboardDevicePage || 0;
+        const sz = window._dashboardDevicePageSize || 10;
+
+        const stats = await apiCall('/api/collector/stats');
+        const statusRes = await apiCall('/api/device/status/all');
+        const statusList = statusRes.data || [];
+
+        let devRes = await apiCall('/api/device/list?page=' + p + '&size=' + sz);
+        let devices = devRes.data || [];
+        let total = devRes.total != null ? devRes.total : devices.length;
+        const totalPages = total > 0 ? Math.ceil(total / sz) : 0;
+        if (total > 0 && p > 0 && devices.length === 0 && totalPages > 0) {
+            p = totalPages - 1;
+            window._dashboardDevicePage = p;
+            devRes = await apiCall('/api/device/list?page=' + p + '&size=' + sz);
+            devices = devRes.data || [];
+            total = devRes.total != null ? devRes.total : total;
+        }
+
+        const onlineCount = statusList.filter(s => s.online).length;
+        const offlineCount = statusList.filter(s => !s.online).length;
+
+        document.getElementById('statsGrid').innerHTML = `
+                <div class="stat-card"><div class="label">总设备数</div><div class="value">${total}</div></div>
+                <div class="stat-card"><div class="label">在线</div><div class="value green">${onlineCount}</div></div>
+                <div class="stat-card"><div class="label">离线</div><div class="value red">${offlineCount}</div></div>
+                <div class="stat-card"><div class="label">本地设备</div><div class="value">${stats.localDeviceCount || 0}</div></div>
+                <div class="stat-card"><div class="label">采集状态</div><div class="value" style="font-size:16px;">${stats.isCollecting ? '采集中...' : '空闲'}</div></div>
+                <div class="stat-card"><div class="label">上次采集耗时</div><div class="value" style="font-size:16px;">${stats.lastCollectDuration || '-'}</div></div>
+            `;
+
+        let html = '<table><tr><th>设备名</th><th>IP</th><th>端口</th><th>类型</th><th>状态</th><th>CPU</th><th>内存</th><th>磁盘</th></tr>';
+        for (const d of devices) {
+            const st = statusList.find(s => s.deviceId === d.id);
+            const isOnline = st && st.online;
+            html += `<tr>
+                    <td>${d.name || '-'}</td><td>${d.deviceIp || '-'}</td><td>${d.devicePort || '-'}</td>
+                    <td>${d.deviceType || '-'}</td>
+                    <td><span class="status-badge ${isOnline ? 'status-online' : 'status-offline'}">${isOnline ? '在线' : '离线'}</span></td>
+                    <td>${st ? st.cpuUsage + '%' : '-'}</td>
+                    <td>${st ? st.memUsagePercent + '%' : '-'}</td>
+                    <td>${st ? st.diskPercent + '%' : '-'}</td>
+                </tr>`;
+        }
+        html += '</table>';
+        document.getElementById('dashboardDeviceList').innerHTML = html;
+        renderPager('dashboardPager', p, sz, total, 'dash');
+    }
+
+    async function loadDevices(page) {
+        if (typeof page === 'number' && page >= 0) window._deviceListPage = page;
+        let p = window._deviceListPage || 0;
+        const sz = window._deviceListPageSize || 10;
+
+        let res = await apiCall('/api/device/list?page=' + p + '&size=' + sz);
+        let devices = res.data || [];
+        let total = res.total != null ? res.total : devices.length;
+        const totalPages = total > 0 ? Math.ceil(total / sz) : 0;
+        if (total > 0 && p > 0 && devices.length === 0 && totalPages > 0) {
+            p = totalPages - 1;
+            window._deviceListPage = p;
+            res = await apiCall('/api/device/list?page=' + p + '&size=' + sz);
+            devices = res.data || [];
+            total = res.total != null ? res.total : total;
+        }
+
+        let html = '<table><tr><th>ID</th><th>名称</th><th>IP</th><th>端口</th><th>厂家</th><th>类型</th><th>型号</th><th>协议</th><th>操作</th></tr>';
+        for (const d of devices) {
+            html += `<tr>
+                    <td style="font-size:11px;">${(d.id || '').substring(0, 8)}...</td>
+                    <td>${d.name || '-'}</td><td>${d.deviceIp || '-'}</td><td>${d.devicePort || '-'}</td>
+                    <td>${d.manufacturer || '-'}</td><td>${d.deviceType || '-'}</td><td>${d.deviceModel || '-'}</td>
+                    <td>${d.protocol || '-'}</td>
+                    <td>
+                        <button class="btn btn-primary" style="padding:4px 8px;font-size:11px;" onclick="collectOne('${d.id}')">采集</button>
+                        <button class="btn btn-danger" style="padding:4px 8px;font-size:11px;" onclick="removeDevice('${d.id}')">删除</button>
+                    </td>
+                </tr>`;
+        }
+        html += '</table>';
+        document.getElementById('deviceTable').innerHTML = html;
+        renderPager('devicePager', p, sz, total, 'device');
+    }
+
+    function getTrapProtocolFields() {
+        const tp = document.getElementById('addTrapProtocol').value;
+        const fields = {};
+        if (tp) fields.trapProtocol = tp;
+        if (tp === 'SNMPv2c') {
+            const cw = document.getElementById('addTrapCommunity').value;
+            if (cw) fields.trapCommunityWrite = cw;
+        }
+        return fields;
+    }
+
+    async function addDevice() {
+        const device = {
+            deviceIp: document.getElementById('addDevIp').value,
+            devicePort: document.getElementById('addDevPort').value,
+            name: document.getElementById('addDevName').value,
+            manufacturer: document.getElementById('addDevMfr').value,
+            deviceType: document.getElementById('addDevType').value,
+            protocol: document.getElementById('addDevProtocol').value,
+            ...getTrapProtocolFields()
+        };
+        if (device.protocol === 'SNMPv3') {
+            device.snmpV3Username = document.getElementById('addDevV3User').value;
+            device.snmpV3AuthProtocol = document.getElementById('addDevV3AuthProto').value;
+            device.snmpV3AuthPassword = document.getElementById('addDevV3Auth').value;
+            device.snmpV3PrivProtocol = document.getElementById('addDevV3PrivProto').value;
+            device.snmpV3PrivPassword = document.getElementById('addDevV3Priv').value;
+        }
+        if (!device.deviceIp) { alert('请输入设备IP'); return; }
+        const res = await apiCall('/api/device/add', 'POST', device);
+        document.getElementById('deviceAlert').innerHTML =
+            `<div class="alert ${res.code === 200 ? 'alert-success' : 'alert-error'}">${res.message || JSON.stringify(res)}</div>`;
+        loadDevices(0);
+    }
+
+    function escapeHtml(s) {
+        if (s == null || s === '') return '';
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    window._discoverResults = [];
+
+    async function startDiscover() {
+        const net = document.getElementById('discoverNet').value.trim();
+        const prefix = parseInt(document.getElementById('discoverPrefix').value, 10);
+        const port = document.getElementById('discoverPort').value.trim() || '161';
+        const community = document.getElementById('discoverCommunity').value.trim();
+        const protocol = document.getElementById('discoverProtocol').value;
+        const timeoutMs = parseInt(document.getElementById('discoverTimeout').value, 10) || 500;
+        if (!net) { alert('请填写网络地址'); return; }
+        if (isNaN(prefix) || prefix < 0 || prefix > 32) { alert('前缀长度应为 0～32'); return; }
+
+        const btn = document.getElementById('btnDiscover');
+        const addBtn = document.getElementById('btnDiscoverAdd');
+        const selAllBtn = document.getElementById('btnDiscoverSelectAll');
+        const clrSelBtn = document.getElementById('btnDiscoverClearSel');
+        btn.disabled = true;
+        addBtn.disabled = true;
+        if (selAllBtn) selAllBtn.disabled = true;
+        if (clrSelBtn) clrSelBtn.disabled = true;
+        document.getElementById('discoverStatus').innerHTML = '<span class="alert alert-info" style="display:inline-block;padding:8px 12px;">扫描中，请稍候…</span>';
+        document.getElementById('discoverTableWrap').innerHTML = '';
+        document.getElementById('discoverPager').innerHTML = '';
+        window._discoverResults = [];
+        window._discoverSelectedIdx = new Set();
+        window._discoverPage = 0;
+
+        const body = {
+            networkAddress: net,
+            prefixLength: prefix,
+            snmpPort: parseInt(port, 10) || 161,
+            protocol: protocol,
+            community: community || null,
+            timeoutMs: timeoutMs,
+            retries: 0,
+            maxConcurrent: 32
+        };
+        if (protocol === 'SNMPv3') {
+            body.v3Username = document.getElementById('discoverV3User').value || null;
+            body.v3AuthPassword = document.getElementById('discoverV3Auth').value || null;
+            body.v3PrivPassword = document.getElementById('discoverV3Priv').value || null;
+            body.v3AuthProtocol = document.getElementById('discoverV3AuthProto').value || null;
+            body.v3PrivProtocol = document.getElementById('discoverV3PrivProto').value || null;
+        }
+        const res = await apiCall('/api/device/discover', 'POST', body);
+        btn.disabled = false;
+
+        if (res.code !== 200) {
+            document.getElementById('discoverStatus').innerHTML =
+                `<div class="alert alert-error">${escapeHtml(res.message || JSON.stringify(res))}</div>`;
+            return;
+        }
+
+        window._discoverResults = res.data || [];
+        window._discoverSelectedIdx = new Set();
+        window._discoverPage = 0;
+        document.getElementById('discoverStatus').innerHTML =
+            `<div class="alert alert-success">发现 ${window._discoverResults.length} 台 SNMP 响应主机（请勾选后点击「添加选中设备」，或使用「全选全部」）</div>`;
+        const hasRes = window._discoverResults.length > 0;
+        addBtn.disabled = !hasRes;
+        if (selAllBtn) selAllBtn.disabled = !hasRes;
+        if (clrSelBtn) clrSelBtn.disabled = !hasRes;
+
+        renderDiscoverTable(0);
+    }
+
+    function discoverSelectAll() {
+        const list = window._discoverResults || [];
+        if (list.length === 0) return;
+        if (!window._discoverSelectedIdx) window._discoverSelectedIdx = new Set();
+        window._discoverSelectedIdx.clear();
+        for (let i = 0; i < list.length; i++) window._discoverSelectedIdx.add(i);
+        renderDiscoverTable(window._discoverPage);
+    }
+
+    function discoverClearSelection() {
+        const list = window._discoverResults || [];
+        if (list.length === 0) return;
+        if (window._discoverSelectedIdx) window._discoverSelectedIdx.clear();
+        renderDiscoverTable(window._discoverPage);
+    }
+
+    function toggleDiscoverAll(checked) {
+        const list = window._discoverResults || [];
+        const p = window._discoverPage || 0;
+        const sz = window._discoverPageSize || 10;
+        const from = p * sz;
+        const to = Math.min(from + sz, list.length);
+        if (!window._discoverSelectedIdx) window._discoverSelectedIdx = new Set();
+        for (let i = from; i < to; i++) {
+            if (checked) window._discoverSelectedIdx.add(i);
+            else window._discoverSelectedIdx.delete(i);
+        }
+        document.querySelectorAll('.discover-row-chk').forEach(c => { c.checked = checked; });
+        syncDiscoverChkAll();
+    }
+
+    async function addSelectedDiscovered() {
+        const list = window._discoverResults || [];
+        const set = window._discoverSelectedIdx || new Set();
+        const idxs = Array.from(set).filter(i => i >= 0 && i < list.length).sort((a, b) => a - b);
+        if (idxs.length === 0) {
+            alert('请先勾选要添加的设备');
+            return;
+        }
+        const mfr = document.getElementById('addDevMfr').value;
+        const dtype = document.getElementById('addDevType').value;
+        const trapFields = getTrapProtocolFields();
+        const devices = [];
+        for (const i of idxs) {
+            const h = list[i];
+            if (!h) continue;
+            const name = (h.sysName && h.sysName.trim()) ? h.sysName.trim() : ('VPN-' + h.deviceIp);
+            const proto = h.protocol || document.getElementById('addDevProtocol').value;
+            const row = {
+                deviceIp: h.deviceIp,
+                devicePort: h.devicePort || '161',
+                name: name,
+                manufacturer: mfr,
+                deviceType: dtype,
+                deviceModel: '默认型号',
+                protocol: proto,
+                ...trapFields
+            };
+            if (proto === 'SNMPv3') {
+                row.snmpV3Username = document.getElementById('discoverV3User').value;
+                row.snmpV3AuthProtocol = document.getElementById('discoverV3AuthProto').value;
+                row.snmpV3AuthPassword = document.getElementById('discoverV3Auth').value;
+                row.snmpV3PrivProtocol = document.getElementById('discoverV3PrivProto').value;
+                row.snmpV3PrivPassword = document.getElementById('discoverV3Priv').value;
+            }
+            devices.push(row);
+        }
+        const res = await apiCall('/api/device/addBatch', 'POST', devices);
+        document.getElementById('deviceAlert').innerHTML =
+            `<div class="alert ${res.code === 200 ? 'alert-success' : 'alert-error'}">已提交添加 ${devices.length} 台 — ${escapeHtml(res.message || '')}</div>`;
+        loadDevices(0);
+        if (res.code === 200 && window._discoverSelectedIdx) {
+            for (const i of idxs) window._discoverSelectedIdx.delete(i);
+            renderDiscoverTable(window._discoverPage);
+        }
+    }
+
+    async function addVpnSimDevices() {
+        const trapFields = getTrapProtocolFields();
+        const devices = [];
+        for (let i = 1; i <= 5; i++) {
+            devices.push({
+                deviceIp: '192.168.5.' + i,
+                devicePort: '161',
+                name: 'VPN-Sim-' + i,
+                manufacturer: 'QASKY',
+                deviceType: 'QVPN',
+                deviceModel: 'QV-2000',
+                protocol: 'SNMPv2c',
+                ...trapFields
+            });
+        }
+        const res = await apiCall('/api/device/addBatch', 'POST', devices);
+        document.getElementById('deviceAlert').innerHTML =
+            `<div class="alert alert-success">已添加 ${devices.length} 台VPN-Sim模拟设备（SNMPv2c, community=public）</div>`;
+        loadDevices(0);
+    }
+
+    async function removeDevice(id) {
+        if (!confirm('确定要删除该设备吗？')) return;
+        const res = await apiCall('/api/device/' + id, 'DELETE');
+        if (res.code === 200) {
+            alert('设备已删除');
+            loadDevices();
+        } else {
+            alert('删除失败: ' + (res.message || '未知错误'));
+        }
+    }
+
+    async function collectOne(id) {
+        const res = await apiCall('/api/collector/collect/' + id, 'POST');
+        if (res.data) {
+            alert(`采集完成: ${res.data.online ? '在线' : '离线'} CPU=${res.data.cpuUsage}%`);
+        } else {
+            alert('采集失败: ' + (res.message || ''));
+        }
+    }
+
+    async function triggerCollectAll() {
+        const btn = event.target;
+        btn.disabled = true;
+        btn.textContent = '采集中...';
+        const res = await apiCall('/api/collector/collectAll', 'POST');
+        btn.disabled = false;
+        btn.textContent = '立即采集';
+        loadDashboard();
+        loadStats();
+        alert(`采集完成: 总计 ${res.total || 0} 台, 在线 ${res.online || 0} 台`);
+    }
+
+    async function snmpGet() {
+        const host = document.getElementById('snmpHost').value;
+        const port = document.getElementById('snmpPort').value;
+        const oid = document.getElementById('snmpOid').value;
+        const protocol = document.getElementById('snmpProtocol').value;
+        if (!host || !oid) { alert('请填写IP和OID'); return; }
+        document.getElementById('snmpResult').textContent = '查询中...';
+        let url = '/api/collector/snmpGet?host=' + encodeURIComponent(host)
+            + '&port=' + encodeURIComponent(port)
+            + '&oid=' + encodeURIComponent(oid)
+            + '&protocol=' + encodeURIComponent(protocol);
+        if (protocol === 'SNMPv3') url += snmpV3QuerySuffix();
+        else url += snmpV2cQuerySuffix();
+        const res = await apiCall(url);
+        document.getElementById('snmpResult').textContent = JSON.stringify(res, null, 2);
+    }
+
+    async function snmpWalk() {
+        const host = document.getElementById('snmpHost').value;
+        const port = document.getElementById('snmpPort').value;
+        const oid = document.getElementById('snmpOid').value;
+        const protocol = document.getElementById('snmpProtocol').value;
+        if (!host || !oid) { alert('请填写IP和OID'); return; }
+        document.getElementById('snmpResult').textContent = 'Walk中...';
+        let wurl = '/api/collector/snmpWalk?host=' + encodeURIComponent(host)
+            + '&port=' + encodeURIComponent(port)
+            + '&rootOid=' + encodeURIComponent(oid)
+            + '&protocol=' + encodeURIComponent(protocol);
+        if (protocol === 'SNMPv3') wurl += snmpV3QuerySuffix();
+        else wurl += snmpV2cQuerySuffix();
+        const res = await apiCall(wurl);
+        let text = `Walk结果 (${res.total || 0} 条):\n\n`;
+        if (res.data) {
+            for (const r of res.data) {
+                text += `${r.oid} = ${r.value} (${r.type})\n`;
+            }
+        }
+        document.getElementById('snmpResult').textContent = text;
+    }
+
+    async function snmpSet() {
+        const host = document.getElementById('snmpHost').value;
+        const port = document.getElementById('snmpPort').value;
+        const protocol = document.getElementById('snmpProtocol').value;
+        const rows = document.querySelectorAll('.snmp-set-row');
+        const items = [];
+        for (const row of rows) {
+            const oid = row.querySelector('.set-oid').value.trim();
+            const value = row.querySelector('.set-value').value.trim();
+            const valueType = row.querySelector('.set-type').value;
+            if (oid && value) items.push({ oid, value, valueType });
+        }
+        if (!host || items.length === 0) { alert('请填写IP，并至少填写一行OID和值'); return; }
+
+        const resultEl = document.getElementById('snmpResult');
+        resultEl.textContent = '下发中...';
+
+        // GET before SET - read current values
+        let beforeValues = {};
+        for (const item of items) {
+            try {
+                let url = '/api/collector/snmpGet?host=' + encodeURIComponent(host)
+                    + '&port=' + encodeURIComponent(port)
+                    + '&oid=' + encodeURIComponent(item.oid)
+                    + '&protocol=' + encodeURIComponent(protocol);
+                if (protocol === 'SNMPv3') url += snmpV3QuerySuffix();
+                else url += snmpV2cQuerySuffix();
+                const r = await apiCall(url);
+                beforeValues[item.oid] = r.data ? (r.data.value || r.value || '(unknown)') : '(read failed)';
+            } catch(e) { beforeValues[item.oid] = '(read failed)'; }
+        }
+
+        let output = '';
+        for (const item of items) {
+            const payload = {
+                deviceIp: host,
+                devicePort: parseInt(port) || 161,
+                oid: item.oid,
+                value: item.value,
+                valueType: item.valueType
+            };
+            try {
+                const response = await fetch('/api/device/snmp-set', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const res = await response.json();
+                const ok = res.code === 200;
+                output += `[${ok ? 'OK' : 'FAIL'}] ${item.oid}\n`;
+                output += `  类型: ${item.valueType} | 旧值: ${beforeValues[item.oid]} → 新值: ${item.value}\n`;
+                if (!ok) output += `  错误: ${res.message}\n`;
+
+                // Auto verify after SET
+                if (ok && document.getElementById('setAutoVerify').checked) {
+                    try {
+                        let vurl = '/api/collector/snmpGet?host=' + encodeURIComponent(host)
+                            + '&port=' + encodeURIComponent(port)
+                            + '&oid=' + encodeURIComponent(item.oid)
+                            + '&protocol=' + encodeURIComponent(protocol);
+                        if (protocol === 'SNMPv3') vurl += snmpV3QuerySuffix();
+                        else vurl += snmpV2cQuerySuffix();
+                        const vr = await apiCall(vurl);
+                        const actual = vr.data ? (vr.data.value || vr.value || '?') : '?';
+                        output += `  回读验证: ${actual}\n`;
+                    } catch(e) { output += `  回读失败: ${e}\n`; }
+                }
+            } catch (e) {
+                output += `[ERR] ${item.oid}: ${e}\n`;
+            }
+            output += '\n';
+        }
+        resultEl.textContent = output;
+
+        // Save to history
+        saveSetHistory(host, port, items);
+    }
+
+    function addSetRow() {
+        const container = document.getElementById('snmpSetRows');
+        const idx = container.children.length;
+        const div = document.createElement('div');
+        div.className = 'form-row snmp-set-row';
+        div.dataset.idx = idx;
+        div.innerHTML = `
+            <div class="form-group"><label>OID</label><input type="text" class="set-oid" placeholder="1.3.6.1.4.1.99999.8.1.0" style="width:250px;"></div>
+            <div class="form-group"><label>值类型</label><select class="set-type" style="width:120px;"><option value="STRING">STRING</option><option value="INTEGER">INTEGER</option><option value="OID">OID</option><option value="IPADDRESS">IPADDRESS</option><option value="COUNTER">COUNTER</option><option value="GAUGE">GAUGE</option><option value="TIMETICKS">TIMETICKS</option></select></div>
+            <div class="form-group"><label>修改值</label><input type="text" class="set-value" placeholder="输入要下发的值" style="width:200px;"></div>
+            <div class="form-group" style="align-self:flex-end;"><button class="btn" onclick="removeSetRow(this)" style="background:#e0e0e0;color:#333;padding:4px 8px;" title="删除此行">✕</button></div>`;
+        container.appendChild(div);
+    }
+
+    function removeSetRow(btn) {
+        const container = document.getElementById('snmpSetRows');
+        if (container.children.length <= 1) return;
+        btn.closest('.snmp-set-row').remove();
+    }
+
+    function fillSetFromOid(oid, valueType) {
+        // Switch to SNMP tool tab
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(t => { if (t.textContent.includes('SNMP')) t.classList.add('active'); });
+        document.getElementById('panel-snmpTool').classList.add('active');
+        syncSnmpV3Row();
+        // Fill first SET row
+        const firstRow = document.querySelector('.snmp-set-row');
+        if (firstRow) {
+            firstRow.querySelector('.set-oid').value = oid;
+            const sel = firstRow.querySelector('.set-type');
+            const typeMap = { 'Integer32': 'INTEGER', 'OctetString': 'STRING', 'IpAddress': 'IPADDRESS', 'Counter32': 'COUNTER', 'Gauge32': 'GAUGE', 'TimeTicks': 'TIMETICKS' };
+            sel.value = typeMap[valueType] || valueType || 'STRING';
+            firstRow.querySelector('.set-value').focus();
+        }
+    }
+
+    async function fillSnmpFromDevice() {
+        const sel = document.getElementById('snmpDeviceSelect');
+        const devId = sel.value;
+        if (!devId) return;
+        const opt = sel.options[sel.selectedIndex];
+        document.getElementById('snmpHost').value = opt.dataset.ip || '';
+        document.getElementById('snmpPort').value = opt.dataset.port || '161';
+        const proto = opt.dataset.protocol || 'SNMPv3';
+        document.getElementById('snmpProtocol').value = proto.includes('v3') || proto.includes('V3') ? 'SNMPv3' : 'SNMPv2c';
+        syncSnmpV3Row();
+    }
+
+    async function loadSnmpDeviceSelect() {
+        const res = await apiCall('/api/device/list?page=0&size=200');
+        const devices = res.data || [];
+        const sel = document.getElementById('snmpDeviceSelect');
+        sel.innerHTML = '<option value="">-- 手动输入 --</option>';
+        for (const d of devices) {
+            const opt = document.createElement('option');
+            opt.value = d.id;
+            opt.textContent = `${d.name || d.deviceIp} (${d.deviceIp}:${d.devicePort || 161})`;
+            opt.dataset.ip = d.deviceIp || '';
+            opt.dataset.port = d.devicePort || '161';
+            opt.dataset.protocol = d.protocol || 'SNMPv3';
+            sel.appendChild(opt);
+        }
+    }
+
+    function saveSetHistory(host, port, items) {
+        const history = JSON.parse(localStorage.getItem('snmpSetHistory') || '[]');
+        history.unshift({ host, port, items, time: new Date().toLocaleString() });
+        if (history.length > 20) history.length = 20;
+        localStorage.setItem('snmpSetHistory', JSON.stringify(history));
+        renderSetHistory();
+    }
+
+    function renderSetHistory() {
+        const history = JSON.parse(localStorage.getItem('snmpSetHistory') || '[]');
+        const container = document.getElementById('snmpSetHistory');
+        const list = document.getElementById('setHistoryList');
+        if (history.length === 0) { container.style.display = 'none'; return; }
+        container.style.display = '';
+        let html = '<table style="font-size:12px;"><tr><th>时间</th><th>目标</th><th>OID</th><th>值</th><th>操作</th></tr>';
+        for (let i = 0; i < history.length; i++) {
+            const h = history[i];
+            const oidSummary = h.items.map(it => it.oid.split('.').slice(-3).join('.')).join(', ');
+            const valSummary = h.items.map(it => it.value).join(', ');
+            html += `<tr><td>${h.time}</td><td>${h.host}:${h.port}</td><td style="font-family:monospace;">${oidSummary}</td><td>${valSummary}</td><td><button class="btn btn-primary" style="padding:1px 6px;font-size:11px;" onclick="replaySetHistory(${i})">重发</button></td></tr>`;
+        }
+        html += '</table>';
+        list.innerHTML = html;
+    }
+
+    function replaySetHistory(idx) {
+        const history = JSON.parse(localStorage.getItem('snmpSetHistory') || '[]');
+        const h = history[idx];
+        if (!h) return;
+        document.getElementById('snmpHost').value = h.host;
+        document.getElementById('snmpPort').value = h.port;
+        // Rebuild SET rows
+        const container = document.getElementById('snmpSetRows');
+        container.innerHTML = '';
+        for (const item of h.items) {
+            addSetRow();
+            const row = container.lastElementChild;
+            row.querySelector('.set-oid').value = item.oid;
+            row.querySelector('.set-type').value = item.valueType || 'STRING';
+            row.querySelector('.set-value').value = item.value;
+        }
+    }
+
+    function clearSetHistory() {
+        localStorage.removeItem('snmpSetHistory');
+        renderSetHistory();
+    }
+
+    async function loadOids() {
+        const devType = document.getElementById('oidDevType').value;
+        const res = await apiCall(`/api/oid/scalar?deviceType=${devType}`);
+        const oids = res.data || [];
+        let html = `<p style="margin:8px 0;color:#888;">设备类型: ${devType} | 共 ${oids.length} 个标量OID</p>`;
+        html += '<table><tr><th>OID</th><th>名称</th><th>类型</th><th>读写</th><th>说明</th><th>操作</th></tr>';
+        for (const o of oids) {
+            const rw = o.writable ? '<span style="color:#d93025;font-weight:600;">读写</span>' : '<span style="color:#888;">只读</span>';
+            const setBtn = o.writable ? `<button class="btn btn-primary" style="padding:2px 8px;font-size:11px;" onclick="fillSetFromOid('${o.oid}','${o.valueType || 'STRING'}')">SET</button>` : '';
+            html += `<tr><td style="font-family:monospace;font-size:12px;">${o.oid}</td><td>${o.name}</td><td>${o.valueType}</td><td>${rw}</td><td>${o.descriptionZh || ''}</td><td>${setBtn}</td></tr>`;
+        }
+        html += '</table>';
+        document.getElementById('oidTable').innerHTML = html;
+    }
+
+    async function refreshResultList() {
+        const res = await apiCall('/api/device/status/all');
+        const statusList = res.data || [];
+        const sel = document.getElementById('resultDeviceSelect');
+        sel.innerHTML = '<option value="">-- 请选择设备 --</option>';
+        for (const s of statusList) {
+            sel.innerHTML += `<option value="${s.deviceId}">${s.sysName || s.deviceIp || s.deviceId} (${s.online ? '在线' : '离线'})</option>`;
+        }
+        window._allStatus = {};
+        for (const s of statusList) { window._allStatus[s.deviceId] = s; }
+    }
+
+    function showDeviceDetail() {
+        const id = document.getElementById('resultDeviceSelect').value;
+        if (!id || !window._allStatus || !window._allStatus[id]) {
+            document.getElementById('deviceDetailView').innerHTML = '';
+            return;
+        }
+        const s = window._allStatus[id];
+        const memPct = s.memTotalKb > 0 ? Math.round((s.memTotalKb - s.memAvailKb) * 100 / s.memTotalKb) : 0;
+        const fillClass = v => v > 85 ? 'fill-red' : v > 60 ? 'fill-yellow' : 'fill-green';
+
+        let html = '<div class="device-detail">';
+        html += `<div class="detail-section"><h3>系统信息</h3>
+                ${dr('系统描述', s.sysDescr)}${dr('系统名', s.sysName)}${dr('系统位置', s.sysLocation)}
+                ${dr('运行时间', formatUptime(s.sysUpTime))}${dr('联系人', s.sysContact)}
+                ${dr('设备类型', s.vpnDeviceType)}${dr('型号', s.vpnDeviceModel)}${dr('厂商', s.vpnVendor)}
+                ${dr('固件', s.vpnFirmwareVersion)}${dr('序列号', s.vpnSerialNumber)}${dr('MAC', s.vpnMacAddress)}
+            </div>`;
+        html += `<div class="detail-section"><h3>资源使用</h3>
+                ${dr('CPU使用率', s.cpuUsage + '%')}
+                <div class="progress-bar"><div class="fill ${fillClass(s.cpuUsage)}" style="width:${s.cpuUsage}%"></div></div>
+                ${dr('内存使用率', memPct + '%')}
+                <div class="progress-bar"><div class="fill ${fillClass(memPct)}" style="width:${memPct}%"></div></div>
+                ${dr('磁盘使用率', s.diskPercent + '%')}
+                <div class="progress-bar"><div class="fill ${fillClass(s.diskPercent)}" style="width:${s.diskPercent}%"></div></div>
+                ${dr('内存总量', formatKB(s.memTotalKb))}${dr('可用内存', formatKB(s.memAvailKb))}
+            </div>`;
+
+        if (s.tunnels && s.tunnels.length > 0) {
+            html += `<div class="detail-section"><h3>隧道 (${s.tunnels.length})</h3>`;
+            html += '<table><tr><th>索引</th><th>名称</th><th>状态</th><th>本端</th><th>对端</th><th>算法</th></tr>';
+            for (const t of s.tunnels) {
+                const ts = t.status === 1 ? '<span class="status-badge status-online">运行</span>' : '<span class="status-badge status-offline">停止</span>';
+                html += `<tr><td>${t.index}</td><td>${t.name || '-'}</td><td>${ts}</td><td>${t.localAddr || '-'}</td><td>${t.remoteAddr || '-'}</td><td>${t.encryptAlgo || '-'}</td></tr>`;
+            }
+            html += '</table></div>';
+        }
+
+        if (s.interfaces && s.interfaces.length > 0) {
+            html += `<div class="detail-section"><h3>网络接口 (${s.interfaces.length})</h3>`;
+            html += '<table><tr><th>名称</th><th>速率</th><th>状态</th><th>入流量</th><th>出流量</th></tr>';
+            for (const i of s.interfaces) {
+                const os = i.operStatus === 1 ? '<span class="status-badge status-online">UP</span>' : '<span class="status-badge status-offline">DOWN</span>';
+                html += `<tr><td>${i.name || 'if-' + i.index}</td><td>${formatSpeed(i.highSpeed || i.speed)}</td><td>${os}</td><td>${formatBytes(i.hcInOctets || i.inOctets)}</td><td>${formatBytes(i.hcOutOctets || i.outOctets)}</td></tr>`;
+            }
+            html += '</table></div>';
+        }
+
+        html += `<div class="detail-section" style="grid-column:1/-1;"><h3>其他信息</h3>
+                ${dr('密码卡状态', s.cryptoCardStatus === 1 ? '正常' : s.cryptoCardStatus === 0 ? '-' : '异常')}
+                ${dr('密码卡调用', s.cryptoCardCallCount)}${dr('密码卡算法', s.cryptoCardAlgorithms)}
+                ${dr('IKE SA数', s.ikeCount)}${dr('隧道总数', s.tunnelCount)}
+                ${dr('防火墙规则', s.firewallRuleCount)}${dr('ACL', s.firewallAclCount)}
+                ${dr('路由总数', s.routeTotalCount)}${dr('采集时间', s.collectTime)}
+            </div>`;
+
+        if (s.rawOidData) {
+            html += '<div class="detail-section" style="grid-column:1/-1;"><h3>原始OID数据</h3>';
+            html += '<table><tr><th>OID名</th><th>值</th></tr>';
+            for (const [k, v] of Object.entries(s.rawOidData)) {
+                html += `<tr><td>${k}</td><td>${v}</td></tr>`;
+            }
+            html += '</table></div>';
+        }
+
+        html += '</div>';
+        document.getElementById('deviceDetailView').innerHTML = html;
+    }
+
+    const ALARM_CODE_ZH = {
+        'DEVICE_DOWN': '设备离线', 'DEVICE_UP': '设备上线',
+        'CPU_HIGH': 'CPU过高', 'MEMORY_HIGH': '内存过高', 'DISK_HIGH': '磁盘过高',
+        'TUNNEL_DOWN': '隧道断开', 'TUNNEL_UP': '隧道恢复', 'CRYPTO_ERROR': '密码卡异常'
+    };
+    function alarmLevelClass(code, level) {
+        if (code && (code.endsWith('_UP') || code === 'DEVICE_UP')) return 'alarm-recover';
+        if (level === 1) return 'alarm-critical';
+        if (level === 2) return 'alarm-major';
+        if (level === 3) return 'alarm-minor';
+        return 'alarm-info';
+    }
+    function alarmLevelText(code, level) {
+        if (code && (code.endsWith('_UP') || code === 'DEVICE_UP')) return '恢复';
+        if (level === 1) return '严重';
+        if (level === 2) return '主要';
+        if (level === 3) return '次要';
+        return '信息';
+    }
+
+    window._alarmAutoRefreshTimer = null;
+    function toggleAlarmAutoRefresh() {
+        if (document.getElementById('alarmAutoRefresh').checked) {
+            loadAlarms();
+            window._alarmAutoRefreshTimer = setInterval(loadAlarms, 5000);
+        } else {
+            clearInterval(window._alarmAutoRefreshTimer);
+            window._alarmAutoRefreshTimer = null;
+        }
+    }
+
+    async function loadAlarms() {
+        const res = await apiCall('/api/collector/alarms');
+        const alarms = res.data || [];
+        const countEl = document.getElementById('alarmCount');
+        if (countEl) countEl.textContent = alarms.length > 0 ? `共 ${alarms.length} 条告警` : '';
+        if (alarms.length === 0) {
+            document.getElementById('alarmTable').innerHTML = '<div class="alert alert-info" style="margin-top:8px;">暂无告警数据</div>';
+            return;
+        }
+        let html = '<table><tr><th>接收时间</th><th>级别</th><th>设备IP</th><th>告警类型</th><th>告警内容</th><th>Trap OID</th></tr>';
+        for (const a of alarms) {
+            const code = a.alarmCode || '';
+            const cls = alarmLevelClass(code, a.alarmLevel);
+            const lvl = alarmLevelText(code, a.alarmLevel);
+            const codeZh = ALARM_CODE_ZH[code] || code || '未知';
+            html += `<tr>
+                    <td style="white-space:nowrap;">${escapeHtml(a.alarmCreateDate || '-')}</td>
+                    <td><span class="status-badge ${cls}">${lvl}</span></td>
+                    <td>${escapeHtml(a.deviceIp || a.alarmSource || '-')}</td>
+                    <td><span class="status-badge ${cls}">${escapeHtml(codeZh)}</span></td>
+                    <td style="max-width:300px;word-break:break-all;">${escapeHtml(a.alarmData || '-')}</td>
+                    <td><span style="font-family:monospace;font-size:11px;">${escapeHtml(a.trapOid || '-')}</span></td>
+                </tr>`;
+        }
+        html += '</table>';
+        document.getElementById('alarmTable').innerHTML = html;
+    }
+
+    function dr(label, value) {
+        return `<div class="detail-row"><span class="key">${label}</span><span class="val">${value != null ? value : '-'}</span></div>`;
+    }
+    function formatUptime(ticks) {
+        if (!ticks) return '-';
+        const sec = ticks / 100;
+        const d = Math.floor(sec / 86400);
+        const h = Math.floor((sec % 86400) / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        return `${d}天${h}小时${m}分`;
+    }
+    function formatKB(kb) {
+        if (!kb) return '-';
+        if (kb > 1048576) return (kb / 1048576).toFixed(1) + ' GB';
+        if (kb > 1024) return (kb / 1024).toFixed(1) + ' MB';
+        return kb + ' KB';
+    }
+    function formatBytes(b) {
+        if (!b) return '0 B';
+        if (b > 1073741824) return (b / 1073741824).toFixed(2) + ' GB';
+        if (b > 1048576) return (b / 1048576).toFixed(2) + ' MB';
+        if (b > 1024) return (b / 1024).toFixed(2) + ' KB';
+        return b + ' B';
+    }
+    function formatSpeed(speed) {
+        if (!speed) return '-';
+        if (speed >= 1000) return (speed / 1000) + ' Gbps';
+        return speed + ' Mbps';
+    }
+
+    // Init
+    syncAddV3Row();
+    syncAddTrapCommunityRow();
+    syncDiscoverV3Row();
+    syncSnmpV3Row();
+    loadNodeInfo();
+    loadDashboard();
+    loadStats();
+</script>
+</body>
+</html>

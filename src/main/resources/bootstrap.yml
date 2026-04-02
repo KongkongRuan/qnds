@@ -1,0 +1,48 @@
+# 集中参数（仅此一处维护；原各环境变量默认值已落在此）
+qdns:
+  nacos:
+    server-addr: 18.18.18.103:8848
+    namespace: public
+    enabled: false
+  redis:
+#    host: 18.18.18.103
+#    port: 6379
+#    password: "QaSky20191818"
+
+#    host: 192.168.1.162
+#    port: 6379
+#    password: root
+
+#    host: 127.0.0.1
+#    port: 6379
+#    password: borsche2015
+
+    host: 192.168.1.106
+    port: 6379
+    password: QaSky20191818
+
+  snmp:
+    v3-username: qasky
+    v3-auth-password: qasky1234
+    v3-priv-password: QaSky20191818
+    v2-community-read: public
+    v2-community-write: private
+  collector:
+    scan-interval: 60
+  alarm:
+    enabled: true
+    platform-url: http://192.168.1.35:9008/alarm/save
+spring:
+  application:
+    name: vpn-collector
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${qdns.nacos.server-addr}
+        namespace: ${qdns.nacos.namespace}
+        enabled: ${qdns.nacos.enabled}
+      config:
+        server-addr: ${qdns.nacos.server-addr}
+        namespace: ${qdns.nacos.namespace}
+        enabled: ${qdns.nacos.enabled}
+        file-extension: yml
