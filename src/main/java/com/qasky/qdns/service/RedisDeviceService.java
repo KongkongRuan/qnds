@@ -40,6 +40,9 @@ public class RedisDeviceService {
     @Value("${redis-key.device-status-ttl:300}")
     private int deviceStatusTtl;
 
+    @Value("${redis-key.trap-configured-prefix:qdns:trap-configured:}")
+    private String trapConfiguredPrefix;
+
     public RedisDeviceService(StringRedisTemplate redisTemplate, ObjectMapper objectMapper) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
@@ -181,5 +184,45 @@ public class RedisDeviceService {
         device.setAlgorithmIdentification(status.getCryptoCardAlgorithms());
         device.setVersion(status.getVpnFirmwareVersion());
         device.setUpdateTime(new Date());
+    }
+
+    /**
+     * 获取已配置Trap的设备ID集合
+     */
+    public Set<String> getTrapConfiguredDeviceIds() {
+        String key = trapConfiguredPrefix + getNodeKey();
+        try {
+            Set<String> ids = redisTemplate.opsForSet().members(key);
+            return ids != null ? ids : Collections.emptySet();
+        } catch (Exception e) {
+            log.error("读取Trap已配置集合失败 key={}", key, e);
+            return Collections.emptySet();
+        }
+    }
+
+    /**
+     * 批量添加已配置Trap的设备ID
+     */
+    public void addTrapConfiguredDeviceIds(Collection<String> ids) {
+        if (ids == null || ids.isEmpty()) return;
+        String key = trapConfiguredPrefix + getNodeKey();
+        try {
+            redisTemplate.opsForSet().add(key, ids.toArray(new String[0]));
+        } catch (Exception e) {
+            log.error("写入Trap已配置集合失败 key={}", key, e);
+        }
+    }
+
+    /**
+     * 批量移除已配置Trap的设备ID
+     */
+    public void removeTrapConfiguredDeviceIds(Collection<String> ids) {
+        if (ids == null || ids.isEmpty()) return;
+        String key = trapConfiguredPrefix + getNodeKey();
+        try {
+            redisTemplate.opsForSet().remove(key, ids.toArray(new Object[0]));
+        } catch (Exception e) {
+            log.error("移除Trap已配置集合失败 key={}", key, e);
+        }
     }
 }

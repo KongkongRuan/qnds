@@ -16,9 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.RestTemplate;
 
-import java.net.InetAddress;
 import java.util.*;
 
 /**
@@ -39,11 +37,6 @@ public class DeviceController {
 
     @Value("${snmp.trap.auto-set-target:true}")
     private boolean autoSetTrapTarget;
-
-    @Value("${snmp.trap.target-port:1162}")
-    private int trapTargetPort;
-
-    private final RestTemplate restTemplate = new RestTemplate();
 
     public DeviceController(DeviceCollectorService collectorService,
                             RedisDeviceService redisDeviceService,
@@ -122,7 +115,7 @@ public class DeviceController {
 
         // 主动设置设备的Trap目标为本节点
         if (autoSetTrapTarget) {
-            java.util.concurrent.CompletableFuture.runAsync(() -> setTrapTarget(device));
+            java.util.concurrent.CompletableFuture.runAsync(() -> collectorService.setTrapTarget(device));
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -154,7 +147,7 @@ public class DeviceController {
         collectorService.addLocalDevice(device);
 
         if (autoSetTrapTarget) {
-            java.util.concurrent.CompletableFuture.runAsync(() -> setTrapTarget(device));
+            java.util.concurrent.CompletableFuture.runAsync(() -> collectorService.setTrapTarget(device));
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -163,81 +156,6 @@ public class DeviceController {
         result.put("trapTargetSet", autoSetTrapTarget); // 异步设置，默认返回配置状态
         result.put("data", device);
         return ResponseEntity.ok(result);
-    }
-
-    /**
-     * 设置设备的Trap目标地址为当前节点IP。
-     * 优先使用 device.trapProtocol，为空则跟随 device.protocol。
-     */
-    private boolean setTrapTarget(DeviceInfo device) {
-        try {
-            String nodeIp = InetAddress.getLocalHost().getHostAddress();
-
-            // 确定设置 Trap 使用的 SNMP 协议：优先 trapProtocol，回退到 protocol
-            String effectiveProtocol = (device.getTrapProtocol() != null && !device.getTrapProtocol().trim().isEmpty())
-                    ? device.getTrapProtocol().trim()
-                    : device.getProtocol();
-            String communityOverride = device.getTrapCommunityWrite();
-
-            // 1. 尝试使用标准的SNMP SET来修改设备的Trap目标 (RFC 3413 SNMP-TARGET-MIB)
-            String trapTargetOid = "1.3.6.1.6.3.12.1.2.1.4.1";
-            String trapTargetPortOid = "1.3.6.1.6.3.12.1.2.1.5.1";
-
-            log.info("尝试通过SNMP SET设置Trap目标, deviceIp={}, target={}:{}, protocol={}", device.getDeviceIp(), nodeIp, trapTargetPort, effectiveProtocol);
-
-            SnmpResult ipResult = snmpClient.set(
-                    device.getDeviceIp(),
-                    Integer.parseInt(device.getDevicePort()),
-                    trapTargetOid,
-                    nodeIp,
-                    "STRING",
-                    effectiveProtocol,
-                    device,
-                    communityOverride
-            );
-
-            if (ipResult.isSuccess()) {
-                snmpClient.set(device.getDeviceIp(), Integer.parseInt(device.getDevicePort()), trapTargetPortOid, String.valueOf(trapTargetPort), "INTEGER", effectiveProtocol, device, communityOverride);
-                log.info("设备Trap目标SNMP设置成功: deviceId={}, target={}:{}", device.getId(), nodeIp, trapTargetPort);
-                return true;
-            } else {
-                log.warn("设备Trap目标SNMP设置失败 (可能是模拟器或设备不支持该MIB): deviceId={}, error={}", device.getId(), ipResult.getError());
-
-                // 2. 如果是模拟环境(VPN-Sim)，尝试通过模拟器的API强制设置Trap目标
-                return trySetVpnSimTrapTarget(nodeIp);
-            }
-        } catch (Exception e) {
-            log.error("设置Trap目标异常: deviceId={}", device.getId(), e);
-            return false;
-        }
-    }
-
-    /**
-     * 针对VPN-Sim模拟器的特殊处理，通过调用其API设置Trap目标
-     */
-    private boolean trySetVpnSimTrapTarget(String nodeIp) {
-        try {
-            // 假设VPN-Sim控制API在本地8888端口
-            String vpnSimApiUrl = "http://127.0.0.1:8888/api/config";
-            Map<String, Object> req = new HashMap<>();
-            Map<String, Object> trapConfig = new HashMap<>();
-            List<Map<String, Object>> targets = new ArrayList<>();
-            Map<String, Object> target = new HashMap<>();
-            target.put("host", nodeIp);
-            target.put("port", trapTargetPort);
-            target.put("community", "public");
-            targets.add(target);
-            trapConfig.put("targets", targets);
-            req.put("trap", trapConfig);
-
-            // VPN-Sim 使用 PUT 请求更新配置
-            restTemplate.put(vpnSimApiUrl, req);
-            log.info("已通过VPN-Sim API成功注入Trap目标: {}:{}", nodeIp, trapTargetPort);
-            return true;
-        } catch (Exception e) {
-            log.debug("尝试调用VPN-Sim API设置Trap失败 (忽略): {}", e.getMessage());
-            return false;
-        }
     }
 
     /**
@@ -284,7 +202,7 @@ public class DeviceController {
             collectorService.addLocalDevice(device);
             
             if (autoSetTrapTarget) {
-                java.util.concurrent.CompletableFuture.runAsync(() -> setTrapTarget(device));
+                java.util.concurrent.CompletableFuture.runAsync(() -> collectorService.setTrapTarget(device));
             }
         }
 

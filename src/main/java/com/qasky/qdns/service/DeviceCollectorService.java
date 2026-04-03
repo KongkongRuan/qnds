@@ -4,15 +4,20 @@ import com.qasky.qdns.config.CollectorConfig;
 import com.qasky.qdns.model.DeviceInfo;
 import com.qasky.qdns.model.DeviceStatus;
 import com.qasky.qdns.snmp.CollectMode;
+import com.qasky.qdns.snmp.SnmpClient;
 import com.qasky.qdns.snmp.SnmpCollector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
+import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /**
  * 设备采集服务 - 管理采集任务，提供手动和定时采集
@@ -25,6 +30,14 @@ public class DeviceCollectorService {
     private final SnmpCollector snmpCollector;
     private final RedisDeviceService redisDeviceService;
     private final CollectorConfig collectorConfig;
+    private final SnmpClient snmpClient;
+    private final RestTemplate restTemplate = new RestTemplate();
+
+    @Value("${snmp.trap.auto-set-target:true}")
+    private boolean autoSetTrapTarget;
+
+    @Value("${snmp.trap.target-port:1162}")
+    private int trapTargetPort;
 
     private final ExecutorService executorService;
     private final AtomicBoolean collecting = new AtomicBoolean(false);
@@ -41,10 +54,12 @@ public class DeviceCollectorService {
 
     public DeviceCollectorService(SnmpCollector snmpCollector,
                                   RedisDeviceService redisDeviceService,
-                                  CollectorConfig collectorConfig) {
+                                  CollectorConfig collectorConfig,
+                                  SnmpClient snmpClient) {
         this.snmpCollector = snmpCollector;
         this.redisDeviceService = redisDeviceService;
         this.collectorConfig = collectorConfig;
+        this.snmpClient = snmpClient;
         this.executorService = Executors.newFixedThreadPool(
                 collectorConfig.getThreadPoolSize(),
                 new ThreadFactory() {
@@ -78,6 +93,9 @@ public class DeviceCollectorService {
                 log.info("无设备需要采集");
                 return results;
             }
+
+            // 检测新增设备并设置Trap地址
+            checkAndSetTrapTargets(devices);
 
             log.info("开始采集 {} 台设备...", devices.size());
 
@@ -153,6 +171,9 @@ public class DeviceCollectorService {
                 log.debug("无设备需要高频采集");
                 return results;
             }
+
+            // 检测新增设备并设置Trap地址
+            checkAndSetTrapTargets(devices);
 
             log.debug("开始高频采集 {} 台设备...", devices.size());
 
@@ -380,6 +401,147 @@ public class DeviceCollectorService {
         stats.put("cachedStatusCount", latestStatus.size());
         stats.put("nodeKey", redisDeviceService.getNodeKey());
         return stats;
+    }
+
+    /**
+     * 检测新增/移除设备，对新增设备设置Trap地址，清理移除设备的记录。
+     * 受 snmp.trap.auto-set-target 开关控制。
+     */
+    private void checkAndSetTrapTargets(List<DeviceInfo> devices) {
+        if (!autoSetTrapTarget) {
+            return;
+        }
+
+        Set<String> currentIds = devices.stream().map(DeviceInfo::getId).collect(Collectors.toSet());
+        Set<String> configuredIds = redisDeviceService.getTrapConfiguredDeviceIds();
+
+        // 新增设备 = 当前设备 - 已配置设备
+        Set<String> newIds = new HashSet<>(currentIds);
+        newIds.removeAll(configuredIds);
+
+        // 移除设备 = 已配置设备 - 当前设备
+        Set<String> removedIds = new HashSet<>(configuredIds);
+        removedIds.removeAll(currentIds);
+
+        // 清理已移除设备的记录
+        if (!removedIds.isEmpty()) {
+            redisDeviceService.removeTrapConfiguredDeviceIds(removedIds);
+            log.info("清理已移除设备的Trap配置记录: {} 台", removedIds.size());
+        }
+
+        if (newIds.isEmpty()) {
+            return;
+        }
+
+        log.info("检测到 {} 台新增设备需要设置Trap地址", newIds.size());
+
+        // 构建ID到设备的映射
+        Map<String, DeviceInfo> deviceMap = new HashMap<>();
+        for (DeviceInfo d : devices) {
+            if (newIds.contains(d.getId())) {
+                deviceMap.put(d.getId(), d);
+            }
+        }
+
+        // 异步设置Trap地址
+        List<String> successIds = new ArrayList<>();
+        for (DeviceInfo device : deviceMap.values()) {
+            CompletableFuture.runAsync(() -> {
+                if (setTrapTarget(device)) {
+                    synchronized (successIds) {
+                        successIds.add(device.getId());
+                    }
+                }
+            }, executorService).whenComplete((v, ex) -> {
+                if (ex != null) {
+                    log.error("设置Trap目标异步异常: deviceId={}", device.getId(), ex);
+                }
+            });
+        }
+
+        // 延迟写入成功记录（给异步任务一定时间完成）
+        CompletableFuture.runAsync(() -> {
+            try {
+                Thread.sleep(10000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            synchronized (successIds) {
+                if (!successIds.isEmpty()) {
+                    redisDeviceService.addTrapConfiguredDeviceIds(successIds);
+                    log.info("已记录 {} 台设备的Trap配置成功", successIds.size());
+                }
+            }
+        });
+    }
+
+    /**
+     * 设置设备的Trap目标地址为当前节点IP。
+     * 优先使用 device.trapProtocol，为空则跟随 device.protocol。
+     */
+    public boolean setTrapTarget(DeviceInfo device) {
+        try {
+            String nodeIp;
+            try (java.net.DatagramSocket socket = new java.net.DatagramSocket()) {
+                socket.connect(InetAddress.getByName(device.getDeviceIp()), 161);
+                nodeIp = socket.getLocalAddress().getHostAddress();
+            } catch (Exception e) {
+                nodeIp = InetAddress.getLocalHost().getHostAddress();
+            }
+
+            String effectiveProtocol = (device.getTrapProtocol() != null && !device.getTrapProtocol().trim().isEmpty())
+                    ? device.getTrapProtocol().trim()
+                    : device.getProtocol();
+            String communityOverride = device.getTrapCommunityWrite();
+
+            String trapTargetOid = "1.3.6.1.4.1.99999.8.3.0";
+            String trapTargetPortOid = "1.3.6.1.4.1.99999.8.4.0";
+
+            log.info("尝试通过SNMP SET设置Trap目标, deviceIp={}, target={}:{}, protocol={}",
+                    device.getDeviceIp(), nodeIp, trapTargetPort, effectiveProtocol);
+
+            com.qasky.qdns.model.SnmpResult ipResult = snmpClient.set(
+                    device.getDeviceIp(),
+                    Integer.parseInt(device.getDevicePort()),
+                    trapTargetOid, nodeIp, "STRING",
+                    effectiveProtocol, device, communityOverride);
+
+            if (ipResult.isSuccess()) {
+                snmpClient.set(device.getDeviceIp(), Integer.parseInt(device.getDevicePort()),
+                        trapTargetPortOid, String.valueOf(trapTargetPort), "INTEGER",
+                        effectiveProtocol, device, communityOverride);
+                log.info("设备Trap目标SNMP设置成功: deviceId={}, target={}:{}", device.getId(), nodeIp, trapTargetPort);
+                return true;
+            } else {
+                log.warn("设备Trap目标SNMP设置失败: deviceId={}, error={}", device.getId(), ipResult.getError());
+                return trySetVpnSimTrapTarget(nodeIp);
+            }
+        } catch (Exception e) {
+            log.error("设置Trap目标异常: deviceId={}", device.getId(), e);
+            return false;
+        }
+    }
+
+    private boolean trySetVpnSimTrapTarget(String nodeIp) {
+        try {
+            String vpnSimApiUrl = "http://127.0.0.1:8888/api/config";
+            Map<String, Object> req = new HashMap<>();
+            Map<String, Object> trapConfig = new HashMap<>();
+            List<Map<String, Object>> targets = new ArrayList<>();
+            Map<String, Object> target = new HashMap<>();
+            target.put("host", nodeIp);
+            target.put("port", trapTargetPort);
+            target.put("community", "public");
+            targets.add(target);
+            trapConfig.put("targets", targets);
+            req.put("trap", trapConfig);
+            restTemplate.put(vpnSimApiUrl, req);
+            log.info("已通过VPN-Sim API成功注入Trap目标: {}:{}", nodeIp, trapTargetPort);
+            return true;
+        } catch (Exception e) {
+            log.debug("尝试调用VPN-Sim API设置Trap失败 (忽略): {}", e.getMessage());
+            return false;
+        }
     }
 
     private List<DeviceInfo> mergeDeviceLists() {

@@ -87,6 +87,7 @@ redis-key:
   device-list-prefix: ""
   device-status-prefix: "qdns:status:"
   device-status-ttl: 300
+  trap-configured-prefix: "qdns:trap-configured:"
 
 # OID配置
 oid:
