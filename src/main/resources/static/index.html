@@ -94,6 +94,7 @@
         <div class="tab" onclick="switchTab('oidBrowser')">OID浏览</div>
         <div class="tab" onclick="switchTab('results')">采集结果</div>
         <div class="tab" onclick="switchTab('alarms')">接收告警</div>
+        <div class="tab" onclick="switchTab('logs')">日志拉取</div>
     </div>
 
     <!-- Dashboard -->
@@ -474,6 +475,38 @@
         <div class="alert alert-info" style="margin-top:4px;">告警缓存在节点内存中（最近100条），重启后清除。设备需将本节点设为Trap目标才能收到告警。</div>
         <div id="alarmTable"></div>
     </div>
+
+    <!-- Logs -->
+    <div class="panel" id="panel-logs">
+        <h3 style="margin-bottom:12px;">设备日志拉取</h3>
+        <div class="form-row">
+            <div class="form-group">
+                <label>设备选择</label>
+                <select id="logDeviceSelect" style="width:260px;">
+                    <option value="">-- 请选择设备 --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>日志数量</label>
+                <select id="logCount" style="width:100px;">
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="200">200</option>
+                    <option value="500">500</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>起始时间(可选)</label>
+                <input type="text" id="logSince" placeholder="2026-04-03 10:00:00" style="width:180px;">
+            </div>
+        </div>
+        <div class="form-row">
+            <button class="btn btn-primary" onclick="fetchDeviceLogs()">拉取选中设备</button>
+            <button class="btn btn-success" onclick="fetchAllDeviceLogs()">拉取全部设备</button>
+        </div>
+        <div id="logFetchStatus" style="margin-top:12px;"></div>
+        <div id="logResultTable" style="margin-top:12px;"></div>
+    </div>
 </div>
 
 <script>
@@ -556,6 +589,7 @@
         if (name === 'snmpTool') { syncSnmpV3Row(); loadSnmpDeviceSelect(); renderSetHistory(); }
         if (name === 'results') refreshResultList();
         if (name === 'alarms') loadAlarms();
+        if (name === 'logs') loadLogDeviceSelect();
     }
 
     async function apiCall(url, method = 'GET', body = null) {
@@ -1396,6 +1430,176 @@
         }
         html += '</table>';
         document.getElementById('alarmTable').innerHTML = html;
+    }
+
+    async function loadLogDeviceSelect() {
+        const res = await apiCall('/api/device/list?page=0&size=200');
+        const devices = res.data || [];
+        const sel = document.getElementById('logDeviceSelect');
+        sel.innerHTML = '<option value="">-- 请选择设备 --</option>';
+        for (const d of devices) {
+            const opt = document.createElement('option');
+            opt.value = d.id;
+            opt.textContent = `${d.name || d.deviceIp} (${d.deviceIp})`;
+            opt.dataset.ip = d.deviceIp || '';
+            sel.appendChild(opt);
+        }
+    }
+
+    async function fetchDeviceLogs() {
+        const deviceId = document.getElementById('logDeviceSelect').value;
+        if (!deviceId) {
+            alert('请选择设备');
+            return;
+        }
+        const count = parseInt(document.getElementById('logCount').value, 10) || 50;
+        const since = document.getElementById('logSince').value.trim() || null;
+
+        document.getElementById('logFetchStatus').innerHTML = '<div class="alert alert-info">正在拉取日志...</div>';
+        document.getElementById('logResultTable').innerHTML = '';
+
+        const res = await apiCall('/api/device/logs/fetch', 'POST', { deviceId, count, since });
+
+        if (res.code === 200 && res.data && res.data.success) {
+            renderLogResult(res.data);
+            document.getElementById('logFetchStatus').innerHTML = `<div class="alert alert-success">拉取成功: ${res.data.logCount} 条日志, 方式: ${res.data.fetchMethod}, 耗时: ${res.data.fetchTime}ms</div>`;
+        } else {
+            document.getElementById('logFetchStatus').innerHTML = `<div class="alert alert-error">拉取失败: ${res.message || res.data?.errorMessage || '未知错误'}</div>`;
+        }
+    }
+
+    async function fetchAllDeviceLogs() {
+        const count = parseInt(document.getElementById('logCount').value, 10) || 50;
+        const since = document.getElementById('logSince').value.trim() || null;
+
+        document.getElementById('logFetchStatus').innerHTML = '<div class="alert alert-info">正在批量拉取日志...</div>';
+        document.getElementById('logResultTable').innerHTML = '';
+
+        const res = await apiCall('/api/device/logs/fetch-all', 'POST', { count, since });
+
+        if (res.code === 200 && res.data) {
+            renderBatchLogResult(res.data);
+            document.getElementById('logFetchStatus').innerHTML = `<div class="alert alert-success">批量拉取完成: 成功 ${res.data.successCount} 台, 失败 ${res.data.failCount} 台, 总耗时: ${res.data.totalTime}ms</div>`;
+        } else {
+            document.getElementById('logFetchStatus').innerHTML = `<div class="alert alert-error">批量拉取失败: ${res.message || '未知错误'}</div>`;
+        }
+    }
+
+    var _batchLogResults = [];
+    var _currentLogs = [];
+    var _currentLogPage = 0;
+    var _logPageSize = 20;
+    var _currentLogHeader = '';
+
+    function renderBatchLogResult(batchResult) {
+        const results = batchResult.results || [];
+        _batchLogResults = results;
+        if (results.length === 0) {
+            document.getElementById('logResultTable').innerHTML = '<div class="alert alert-info">无结果</div>';
+            return;
+        }
+
+        let html = '<div style="margin-bottom:8px;"><button class="btn btn-primary" style="padding:2px 10px;font-size:12px;" onclick="showAllLogs()">查看所有日志</button></div>';
+        html += '<table><tr><th>设备IP</th><th>状态</th><th>方式</th><th>日志数</th><th>耗时</th><th>操作</th></tr>';
+        for (let i = 0; i < results.length; i++) {
+            const r = results[i];
+            const statusBadge = r.success
+                ? '<span class="status-badge status-online">成功</span>'
+                : '<span class="status-badge status-offline">失败</span>';
+            const method = r.fetchMethod || '-';
+            const logCount = r.logCount || 0;
+            const fetchTime = r.fetchTime ? r.fetchTime + 'ms' : '-';
+            const viewBtn = r.success && r.logs && r.logs.length > 0
+                ? `<button class="btn btn-primary" style="padding:2px 8px;font-size:11px;" onclick="showLogDetail(${i})">查看</button>`
+                : '-';
+            const errorMsg = r.errorMessage ? `<br><span style="color:#ea4335;font-size:11px;">${escapeHtml(r.errorMessage)}</span>` : '';
+            html += `<tr>
+                <td>${escapeHtml(r.deviceIp || r.deviceId || '-')}${errorMsg}</td>
+                <td>${statusBadge}</td>
+                <td>${escapeHtml(method)}</td>
+                <td>${logCount}</td>
+                <td>${fetchTime}</td>
+                <td>${viewBtn}</td>
+            </tr>`;
+        }
+        html += '</table>';
+        document.getElementById('logResultTable').innerHTML = html;
+    }
+
+    function showAllLogs() {
+        const allLogs = [];
+        for (const r of _batchLogResults) {
+            if (r.success && r.logs) {
+                const addr = escapeHtml((r.deviceIp || '-') + ':' + (r.devicePort || '-'));
+                for (const l of r.logs) {
+                    allLogs.push({ ...l, _addr: addr });
+                }
+            }
+        }
+        allLogs.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+        _currentLogs = allLogs;
+        _currentLogPage = 0;
+        _currentLogHeader = `<div style="margin-bottom:8px;font-size:13px;color:#666;">所有设备聚合日志 | 共 ${allLogs.length} 条</div>`;
+        _renderLogPage(true);
+    }
+
+    function renderLogResult(result) {
+        const logs = result.logs || [];
+        if (logs.length === 0) {
+            document.getElementById('logResultTable').innerHTML = '<div class="alert alert-info">无日志数据</div>';
+            return;
+        }
+        _currentLogs = logs.map(l => ({ ...l, _addr: null }));
+        _currentLogPage = 0;
+        _currentLogHeader = `<div style="margin-bottom:8px;font-size:13px;color:#666;">设备: ${escapeHtml(result.deviceIp || result.deviceId)} | 共 ${logs.length} 条日志 | 拉取方式: ${escapeHtml(result.fetchMethod || '-')}</div>`;
+        _renderLogPage(false);
+    }
+
+    function _renderLogPage(showAddr) {
+        const total = _currentLogs.length;
+        const totalPages = Math.ceil(total / _logPageSize);
+        const start = _currentLogPage * _logPageSize;
+        const page = _currentLogs.slice(start, start + _logPageSize);
+
+        let html = _currentLogHeader;
+        html += '<table><tr>';
+        if (showAddr) html += '<th>设备地址</th>';
+        html += '<th>时间戳</th><th>级别</th><th>模块</th><th>消息</th></tr>';
+        for (const log of page) {
+            const levelClass = log.level === 'ERROR' ? 'status-offline' : log.level === 'WARNING' ? 'alarm-major' : 'status-online';
+            html += '<tr>';
+            if (showAddr) html += `<td style="white-space:nowrap;">${log._addr || '-'}</td>`;
+            html += `<td style="white-space:nowrap;">${escapeHtml(log.timestamp || '-')}</td>
+                <td><span class="status-badge ${levelClass}">${escapeHtml(log.level || '-')}</span></td>
+                <td>${escapeHtml(log.module || '-')}</td>
+                <td style="word-break:break-all;">${escapeHtml(log.message || '-')}</td>
+            </tr>`;
+        }
+        html += '</table>';
+
+        if (totalPages > 1) {
+            html += `<div style="margin-top:8px;text-align:center;font-size:13px;">`;
+            html += `<button class="btn" style="padding:2px 8px;font-size:12px;" onclick="_logPageGo(${showAddr},-1)" ${_currentLogPage===0?'disabled':''}>上一页</button> `;
+            html += `第 ${_currentLogPage+1}/${totalPages} 页 (共${total}条) `;
+            html += `<button class="btn" style="padding:2px 8px;font-size:12px;" onclick="_logPageGo(${showAddr},1)" ${_currentLogPage>=totalPages-1?'disabled':''}>下一页</button>`;
+            html += `</div>`;
+        }
+        document.getElementById('logResultTable').innerHTML = html;
+    }
+
+    function _logPageGo(showAddr, dir) {
+        const totalPages = Math.ceil(_currentLogs.length / _logPageSize);
+        _currentLogPage = Math.max(0, Math.min(totalPages - 1, _currentLogPage + dir));
+        _renderLogPage(showAddr);
+    }
+
+    function showLogDetail(index) {
+        const result = _batchLogResults[index];
+        if (!result) {
+            alert('解析数据失败');
+            return;
+        }
+        renderLogResult(result);
     }
 
     function dr(label, value) {

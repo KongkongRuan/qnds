@@ -126,6 +126,12 @@
             <artifactId>hutool-all</artifactId>
             <version>5.8.19</version>
         </dependency>
+        <!-- SSHJ for SSH log fetch fallback -->
+        <dependency>
+            <groupId>com.hierynomus</groupId>
+            <artifactId>sshj</artifactId>
+            <version>0.38.0</version>
+        </dependency>
     </dependencies>
 
     <build>

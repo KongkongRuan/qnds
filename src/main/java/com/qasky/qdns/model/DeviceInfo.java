@@ -36,6 +36,12 @@ public class DeviceInfo implements Serializable {
     private String trapProtocol;
     /** 设置Trap目标使用的v2c写community，空则使用全局 snmp.v2c.community-write */
     private String trapCommunityWrite;
+    /** SSH端口，默认22 */
+    private Integer sshPort;
+    /** SSH用户名 */
+    private String sshUsername;
+    /** SSH密码 */
+    private String sshPassword;
     private String version;
     private String status;
     private String cpuUsed;
