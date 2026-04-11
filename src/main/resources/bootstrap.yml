@@ -1,7 +1,7 @@
 # 集中参数（仅此一处维护；原各环境变量默认值已落在此）
 qdns:
   nacos:
-    server-addr: 18.18.18.103:8848
+    server-addr: 192.168.1.106:8848
     namespace: public
     enabled: false
   redis:

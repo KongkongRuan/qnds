@@ -1,0 +1,86 @@
+第一步：创建服务配置文件
+你需要进入 /etc/systemd/system/ 目录并创建一个以 .service 结尾的文件。我们这里将其命名为 qdns.service。
+
+使用 vi 或 nano 创建并编辑该文件：
+
+Bash
+sudo vi /etc/systemd/system/qdns.service
+第二步：写入服务配置
+将以下内容复制并粘贴到 qdns.service 文件中：
+
+
+[Unit]
+# 服务的描述
+Description=qdns Java Application
+# 确保在网络和系统日志启动后再启动本服务
+After=syslog.target network.target
+
+[Service]
+# 服务类型，simple表示ExecStart启动的主进程即为该服务的主进程
+Type=simple
+
+# 运行该服务的工作目录 (建议设置为jar包所在目录)
+WorkingDirectory=/usr/local/qdns/
+
+# 启动命令：必须使用绝对路径
+ExecStart=/usr/local/qdns/zulu17.64.17-ca-jdk17.0.18-linux_x64/bin/java -jar /usr/local/qdns/qdns-1.0.0.jar
+
+# 指定Java进程正常退出的状态码（Java应用收到SIGTERM时通常返回143）
+SuccessExitStatus=143
+
+# 意外退出时自动重启
+Restart=on-failure
+# 重启间隔时间（秒）
+RestartSec=10
+
+# 运行此服务的用户（如果必须用root运行则保持为root，出于安全考虑建议新建普通用户）
+User=root
+
+[Install]
+# 指定服务所在的运行级别，multi-user.target相当于命令行多用户模式
+WantedBy=multi-user.target
+保存并退出编辑器（在 vi 中按 Esc，输入 :wq，然后回车）。
+
+第三步：重新加载 systemd 守护进程
+每次新增或修改 .service 文件后，都需要让系统重新加载配置使其生效：
+
+Bash
+sudo systemctl daemon-reload
+第四步：管理你的 Java 服务
+现在你可以像管理 nginx 或 mysql 一样管理你的 Java 项目了：
+
+启动服务：
+
+Bash
+sudo systemctl start qdns
+查看服务状态：
+
+Bash
+sudo systemctl status qdns
+(如果显示绿色的 active (running)，说明启动成功。)
+
+设置开机自启：
+
+Bash
+sudo systemctl enable qdns
+停止服务：
+
+Bash
+sudo systemctl stop qdns
+重启服务：
+
+Bash
+sudo systemctl restart qdns
+第五步：如何查看日志？
+之前使用 nohup 时，日志通常会输出到当前目录的 nohup.out 中。改为系统服务后，systemd 会接管标准输出（日志）。
+
+你可以使用 journalctl 命令来查看日志：
+
+实时查看滚动日志（类似于 tail -f nohup.out）：
+
+Bash
+sudo journalctl -u qdns -f
+查看最近 100 行日志：
+
+Bash
+sudo journalctl -u qdns -n 100

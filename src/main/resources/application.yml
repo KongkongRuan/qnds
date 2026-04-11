@@ -6,7 +6,7 @@ qdns:
   node:
     # 手动指定节点IP，未配置时自动获取本机IP
     # 多网卡环境下建议手动指定，确保与Redis中的设备列表key一致
-    address: 192.168.1.37
+    address: 192.168.1.106
 
 spring:
   application:
