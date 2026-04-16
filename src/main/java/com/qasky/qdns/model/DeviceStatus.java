@@ -120,6 +120,8 @@ public class DeviceStatus implements Serializable {
         private String ikeRuleName;
         private String encryptAlgo;
         private int keySource;
+        private long currentRateBps;
+        private long throughputBytes;
     }
 
     @Data

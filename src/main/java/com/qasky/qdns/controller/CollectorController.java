@@ -51,10 +51,29 @@ public class CollectorController {
     }
 
     /**
+     * 手动触发单台设备采集（POST JSON 风格，兼容 QDMS 调用）
+     */
+    @PostMapping("/collect")
+    public ResponseEntity<Map<String, Object>> collectSingleByBody(@RequestBody Map<String, String> body) {
+        String deviceId = firstNonBlank(body.get("id"), body.get("deviceId"));
+        if (deviceId == null) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("code", 400);
+            result.put("message", "id不能为空");
+            return ResponseEntity.badRequest().body(result);
+        }
+        return buildCollectSingleResponse(deviceId);
+    }
+
+    /**
      * 手动触发单台设备采集
      */
     @PostMapping("/collect/{deviceId}")
     public ResponseEntity<Map<String, Object>> collectSingle(@PathVariable String deviceId) {
+        return buildCollectSingleResponse(deviceId);
+    }
+
+    private ResponseEntity<Map<String, Object>> buildCollectSingleResponse(String deviceId) {
         DeviceStatus status = collectorService.collectSingle(deviceId);
         Map<String, Object> result = new LinkedHashMap<>();
         if (status == null) {
@@ -197,5 +216,15 @@ public class CollectorController {
         log.info("v3Stub 创建 DeviceInfo: username={}, authProtocol={}, privProtocol={}",
                 d.getSnmpV3Username(), d.getSnmpV3AuthProtocol(), d.getSnmpV3PrivProtocol());
         return d;
+    }
+
+    private static String firstNonBlank(String first, String second) {
+        if (first != null && !first.trim().isEmpty()) {
+            return first.trim();
+        }
+        if (second != null && !second.trim().isEmpty()) {
+            return second.trim();
+        }
+        return null;
     }
 }

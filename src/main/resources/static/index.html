@@ -72,6 +72,22 @@
         .alarm-recover { background: #e6f7e9; color: #34a853; }
         .btn-toggle-pwd { margin-left:4px; padding:4px 8px; border:1px solid #d9d9d9; border-radius:4px; background:#fff; cursor:pointer; font-size:14px; }
         .btn-toggle-pwd:hover { background:#f5f5f5; }
+        .qdms-layout { display: grid; grid-template-columns: minmax(360px, 420px) minmax(0, 1fr); gap: 16px; }
+        .qdms-card { background: #fafafa; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; }
+        .qdms-card h3 { font-size: 14px; margin-bottom: 10px; color: #1a73e8; border-bottom: 2px solid #1a73e8; padding-bottom: 6px; }
+        .qdms-note { font-size: 12px; color: #666; line-height: 1.7; }
+        .qdms-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+        .qdms-tag { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; background: #e8f0fe; color: #1a73e8; font-size: 12px; font-weight: 600; }
+        .qdms-path { font-family: 'Cascadia Code', 'Consolas', monospace; background: #eef3fd; border-radius: 4px; padding: 2px 8px; color: #174ea6; }
+        .qdms-textarea { min-height: 230px; font-family: 'Cascadia Code', 'Consolas', monospace; resize: vertical; }
+        .qdms-subtle { font-size: 12px; color: #888; }
+        .qdms-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top: 8px; }
+        .qdms-field-list { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; min-height: 30px; }
+        .qdms-field-chip { display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:#eef3fd; color:#174ea6; font-size:12px; font-weight:600; }
+        .qdms-field-chip-empty { font-size:12px; color:#888; padding:6px 0; }
+        @media (max-width: 1100px) {
+            .qdms-layout { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
@@ -95,6 +111,9 @@
         <div class="tab" onclick="switchTab('results')">采集结果</div>
         <div class="tab" onclick="switchTab('alarms')">接收告警</div>
         <div class="tab" onclick="switchTab('logs')">日志拉取</div>
+        <div class="tab" onclick="switchTab('qdmsMock')">QDMS联调</div>
+        <div class="tab" onclick="switchTab('sslVpnDebug')">SSL VPN调试</div>
+        <div class="tab" onclick="switchTab('certificates')">证书管理</div>
     </div>
 
     <!-- Dashboard -->
@@ -204,6 +223,21 @@
             <span style="font-size:11px;color:#999;align-self:center;">添加设备时通过此协议向设备下发Trap目标地址</span>
         </div>
         <div class="form-row">
+            <div class="form-group">
+                <label>VPN-Sim起始IP</label>
+                <input type="text" id="vpnSimStartIp" value="192.168.1.151" style="width:150px;">
+            </div>
+            <div class="form-group">
+                <label>数量</label>
+                <input type="number" id="vpnSimCount" value="5" min="1" max="256" style="width:72px;">
+            </div>
+            <div class="form-group">
+                <label>起始设备ID</label>
+                <input type="number" id="vpnSimStartId" value="1" min="1" max="9999" style="width:92px;">
+            </div>
+            <span style="font-size:11px;color:#999;align-self:center;">批量添加时会把设备ID补齐为 4 位，例如 0001，对应 VPN-Sim 的 device_id。</span>
+        </div>
+        <div class="form-row">
             <button class="btn btn-primary" onclick="addDevice()">添加</button>
             <button class="btn btn-success" onclick="addVpnSimDevices()">添加VPN-Sim设备</button>
         </div>
@@ -293,6 +327,32 @@
         <h3 style="margin:16px 0 8px;font-size:15px;color:#333;">设备列表</h3>
         <div id="deviceTable"></div>
         <div id="devicePager"></div>
+        <h3 style="margin:20px 0 12px;">模拟设备运维（经 QDNS 调用 VPN-Sim HTTP 接口）</h3>
+        <div class="alert alert-info">这里调用的是 QDNS 的统一运维北向接口，QDMS 平台应走同一套接口。恢复需要上传备份 zip，升级会在后台轮询直到版本真正写回。</div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>设备</label>
+                <select id="deviceOpsSelect" style="width:260px;">
+                    <option value="">-- 请选择设备 --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>升级版本</label>
+                <input type="text" id="deviceUpgradeVersion" value="V4.0.0-build20260415" style="width:220px;">
+            </div>
+            <div class="form-group">
+                <label>恢复备份包</label>
+                <input type="file" id="deviceRestoreFile" accept=".zip,application/zip" style="width:260px;">
+            </div>
+        </div>
+        <div class="form-row">
+            <button class="btn btn-primary" onclick="backupDeviceByHttp()">导出备份</button>
+            <button class="btn btn-warning" onclick="restoreDeviceByHttp()">恢复备份</button>
+            <button class="btn btn-success" onclick="upgradeDeviceByHttp()">升级固件</button>
+            <button class="btn" style="background:#eceff1;color:#37474f;" onclick="rebootDeviceByHttp()">重启设备</button>
+        </div>
+        <div id="deviceOpsAlert"></div>
+        <div class="result-box" id="deviceOpsResult" style="min-height:120px;">运维结果会显示在这里</div>
     </div>
 
     <!-- SNMP Tool -->
@@ -507,6 +567,389 @@
         <div id="logFetchStatus" style="margin-top:12px;"></div>
         <div id="logResultTable" style="margin-top:12px;"></div>
     </div>
+
+    <!-- QDMS Mock -->
+    <div class="panel" id="panel-qdmsMock">
+        <div class="alert alert-info">这里按 <code>QDMS -> QDNS</code> 的北向接口风格构造调试请求。可以先套用模板，再按需改路径和请求体，发送后会展示原始返回；遇到异步统一运维任务时可自动轮询任务状态。</div>
+        <div class="qdms-layout">
+            <div class="qdms-card">
+                <h3>请求助手</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>当前目标节点</label>
+                        <input type="text" id="qdmsTargetOrigin" readonly style="width:300px;background:#f5f7fa;">
+                    </div>
+                    <div class="form-group">
+                        <label>请求模板</label>
+                        <select id="qdmsPresetSelect" style="width:300px;" onchange="applyQdmsPreset()">
+                            <option value="nodeInfo">节点信息 GET /api/node/info</option>
+                            <option value="deviceSync">同步设备 POST /api/device/sync</option>
+                            <option value="deviceList">设备列表 GET /api/device/list</option>
+                            <option value="deviceStatus">单设备状态 GET /api/device/status?id=...</option>
+                            <option value="deviceStatusAll">全部状态 GET /api/device/status/all</option>
+                            <option value="collectOne">单设备采集 POST /api/collector/collect</option>
+                            <option value="collectAll">全量采集 POST /api/collector/collectAll</option>
+                            <option value="logsFetch">单设备日志 POST /api/device/logs/fetch</option>
+                            <option value="logsBatch">批量日志 POST /api/device/logs/batch</option>
+                            <option value="logsFetchAll">全部日志 POST /api/device/logs/fetch-all</option>
+                            <option value="unifiedBackup">统一运维-备份 POST /api/unified/command</option>
+                            <option value="unifiedRestore">统一运维-恢复 POST /api/unified/command</option>
+                            <option value="unifiedUpgrade">统一运维-升级 POST /api/unified/command</option>
+                            <option value="unifiedReboot">统一运维-重启 POST /api/unified/command</option>
+                            <option value="unifiedTask">任务查询 GET /api/unified/task?taskId=...</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="qdmsPresetHint" class="alert alert-info">选择模板后会按说明文档生成一份可直接发送的请求。</div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>已同步设备</label>
+                        <select id="qdmsDeviceSelect" style="width:300px;" onchange="fillQdmsDeviceFieldsFromSelection()">
+                            <option value="">-- 手动填写 / 还未同步 --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>批量设备ID</label>
+                        <input type="text" id="qdmsBatchDeviceIds" value="qdms-device-0001,qdms-device-0002" style="width:260px;" placeholder="qdms-device-0001,qdms-device-0002">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>QDMS设备ID</label>
+                        <input type="text" id="qdmsDeviceId" value="qdms-device-0001" style="width:150px;">
+                    </div>
+                    <div class="form-group">
+                        <label>设备IP</label>
+                        <input type="text" id="qdmsDeviceIp" value="192.168.1.151" style="width:150px;">
+                    </div>
+                    <div class="form-group">
+                        <label>SNMP端口</label>
+                        <input type="number" id="qdmsDevicePort" value="161" style="width:90px;">
+                    </div>
+                    <div class="form-group">
+                        <label>设备名称</label>
+                        <input type="text" id="qdmsDeviceName" value="QDMS-VPN-0001" style="width:160px;">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>厂家</label>
+                        <input type="text" id="qdmsManufacturer" value="QASKY" style="width:120px;">
+                    </div>
+                    <div class="form-group">
+                        <label>设备类型</label>
+                        <input type="text" id="qdmsDeviceType" value="QVPN" style="width:120px;">
+                    </div>
+                    <div class="form-group">
+                        <label>设备型号</label>
+                        <input type="text" id="qdmsDeviceModel" value="QV-2000" style="width:140px;">
+                    </div>
+                    <div class="form-group">
+                        <label>SNMP协议</label>
+                        <select id="qdmsSnmpVersion" style="width:120px;" onchange="syncQdmsV3Row()">
+                            <option value="SNMPv3">SNMPv3</option>
+                            <option value="SNMPv2c">SNMPv2c</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row" id="qdmsV3Row">
+                    <div class="form-group">
+                        <label>SNMPv3 用户名</label>
+                        <input type="text" id="qdmsV3User" value="qasky" style="width:110px;">
+                    </div>
+                    <div class="form-group">
+                        <label>认证协议</label>
+                        <select id="qdmsV3AuthProto" style="width:140px;">
+                            <option value="SHA">SHA</option>
+                            <option value="MD5">MD5</option>
+                            <option value="HMAC128SHA224">HMAC128SHA224</option>
+                            <option value="HMAC192SHA256">HMAC192SHA256</option>
+                            <option value="SM3">SM3</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>认证密码</label>
+                        <input type="text" id="qdmsV3Auth" value="qasky1234" style="width:130px;">
+                    </div>
+                    <div class="form-group">
+                        <label>加密协议</label>
+                        <select id="qdmsV3PrivProto" style="width:140px;">
+                            <option value="AES128">AES128</option>
+                            <option value="AES192">AES192</option>
+                            <option value="AES256">AES256</option>
+                            <option value="DES">DES</option>
+                            <option value="SM4">SM4</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>加密密码</label>
+                        <input type="text" id="qdmsV3Priv" value="QaSky20191818" style="width:150px;">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>requestId</label>
+                        <input type="text" id="qdmsRequestId" placeholder="留空则自动生成" style="width:220px;">
+                    </div>
+                    <div class="form-group">
+                        <label>operator</label>
+                        <input type="text" id="qdmsOperator" value="qdms" style="width:120px;">
+                    </div>
+                    <div class="form-group">
+                        <label>任务ID</label>
+                        <input type="text" id="qdmsTaskId" placeholder="查询异步任务时使用" style="width:230px;">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>页码 page</label>
+                        <input type="number" id="qdmsPage" value="0" min="0" style="width:90px;">
+                    </div>
+                    <div class="form-group">
+                        <label>每页 size</label>
+                        <input type="number" id="qdmsSize" value="20" min="0" style="width:90px;">
+                    </div>
+                    <div class="form-group">
+                        <label>日志条数 count</label>
+                        <input type="number" id="qdmsLogCount" value="50" min="1" style="width:100px;">
+                    </div>
+                    <div class="form-group">
+                        <label>日志起始 since</label>
+                        <input type="text" id="qdmsLogSince" placeholder="2026-04-15 17:30:00" style="width:180px;">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>升级版本</label>
+                        <input type="text" id="qdmsUpgradeVersion" value="V4.0.0-build20260415" style="width:220px;">
+                    </div>
+                    <div class="form-group">
+                        <label>恢复备份 zip</label>
+                        <input type="file" id="qdmsRestoreFile" accept=".zip,application/zip" style="width:240px;">
+                    </div>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;padding-bottom:8px;">
+                        <input type="checkbox" id="qdmsAutoPollTask" checked> 统一运维异步任务自动轮询
+                    </label>
+                </div>
+
+                <div class="qdms-actions">
+                    <button class="btn btn-primary" onclick="applyQdmsPreset()">套用模板</button>
+                    <button class="btn btn-success" onclick="fillQdmsDeviceFieldsFromSelection()">从已同步设备回填</button>
+                    <button class="btn btn-warning" onclick="injectQdmsRestoreFileToBody()">将恢复文件写入请求体</button>
+                </div>
+                <div class="qdms-note" style="margin-top:10px;">
+                    建议联调顺序：先发送 <span class="qdms-path">/api/device/sync</span>，再调 <span class="qdms-path">/api/unified/command</span>。
+                    <code>deviceId</code> 表示 QDMS 平台设备 ID，QDNS 会根据 Redis / 节点缓存中的 <code>deviceIp + devicePort</code> 去定位下游设备。
+                    对于 <code>10007 upgrade</code> 和 <code>10008 reboot</code>，QDMS 侧不应只看受理响应，必须继续轮询 <span class="qdms-path">/api/unified/task?taskId=...</span>。
+                </div>
+            </div>
+
+            <div class="qdms-card">
+                <h3>原始请求与响应</h3>
+                <div class="qdms-meta">
+                    <span class="qdms-tag" id="qdmsMethodBadge">GET</span>
+                    <span class="qdms-path" id="qdmsPathBadge">/api/node/info</span>
+                    <span class="qdms-subtle" id="qdmsPreviewNote">模板会在发送前自动按当前表单重新生成。</span>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>HTTP方法</label>
+                        <select id="qdmsMethod" style="width:120px;" onchange="syncQdmsRequestMeta()">
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex:1 1 420px;">
+                        <label>请求路径</label>
+                        <input type="text" id="qdmsPath" value="/api/node/info" style="min-width:420px;" onchange="syncQdmsRequestMeta()">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>请求体(JSON，可手工修改)</label>
+                    <textarea id="qdmsRequestBody" class="qdms-textarea" placeholder="该接口无请求体"></textarea>
+                </div>
+
+                <div class="qdms-actions">
+                    <button class="btn btn-primary" onclick="executeQdmsMockRequest()">发送请求</button>
+                    <button class="btn btn-success" onclick="beautifyQdmsRequestBody()">格式化请求体</button>
+                    <button class="btn" style="background:#eceff1;color:#37474f;" onclick="clearQdmsRequestBody()">清空请求体</button>
+                </div>
+
+                <div id="qdmsResponseAlert" style="margin-top:16px;"></div>
+                <div class="qdms-subtle" id="qdmsResponseMeta">响应信息会显示在这里</div>
+                <div class="result-box" id="qdmsResponseResult" style="min-height:240px;">请选择模板并发送请求。</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SSL VPN Debug -->
+    <div class="panel" id="panel-sslVpnDebug">
+        <div class="alert alert-info">
+            这里单独调试 <code>QDNS -> /api/unified/command</code> 已开放的 SSL VPN 配置类能力，当前覆盖 <code>10000-10004</code>。
+            <code>deviceId</code> 仍然表示 QDMS 平台设备 ID，QDNS 会根据 Redis / 节点缓存中的 <code>deviceIp + devicePort</code> 去定位 VPN-Sim 设备。
+            VPN-Sim 协议文档里的 <code>get_*</code> 查询类 IPC 虽然在模拟器侧已实现，但目前没有在 QDNS 北向统一运维注册，所以本页只生成已开放的配置下发命令。
+        </div>
+        <div class="qdms-layout">
+            <div class="qdms-card">
+                <h3>配置助手</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>当前目标节点</label>
+                        <input type="text" id="sslVpnDebugTargetOrigin" readonly style="width:300px;background:#f5f7fa;">
+                    </div>
+                    <div class="form-group">
+                        <label>已同步设备</label>
+                        <select id="sslVpnDebugDeviceSelect" style="width:320px;" onchange="fillSslVpnDebugDeviceFromSelection()">
+                            <option value="">-- 手动填写 / 还未同步 --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>QDMS设备ID</label>
+                        <input type="text" id="sslVpnDebugDeviceId" value="qdms-device-0001" style="width:180px;">
+                    </div>
+                    <div class="form-group">
+                        <label>requestId</label>
+                        <input type="text" id="sslVpnDebugRequestId" placeholder="留空则自动生成" style="width:220px;">
+                    </div>
+                    <div class="form-group">
+                        <label>operator</label>
+                        <input type="text" id="sslVpnDebugOperator" value="qdms" style="width:120px;">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>能力编码</label>
+                        <select id="sslVpnDebugCode" style="width:180px;" onchange="syncSslVpnDebugOperations()">
+                            <option value="10000">10000 专线配置</option>
+                            <option value="10001">10001 ACL配置</option>
+                            <option value="10002">10002 路由配置</option>
+                            <option value="10003">10003 白名单配置</option>
+                            <option value="10004">10004 NAT配置</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>操作</label>
+                        <select id="sslVpnDebugOperation" style="width:280px;" onchange="applySslVpnDebugTemplate()"></select>
+                    </div>
+                </div>
+
+                <div id="sslVpnDebugHint" class="alert alert-info">请选择能力编码和操作，页面会自动生成统一运维请求体。</div>
+
+                <div class="form-group">
+                    <label>当前操作必填字段</label>
+                    <div id="sslVpnDebugRequiredFields" class="qdms-field-list">
+                        <span class="qdms-field-chip-empty">选择操作后展示</span>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top:12px;">
+                    <label>操作说明</label>
+                    <div class="qdms-note" id="sslVpnDebugNote">
+                        当前页面聚焦 QDNS 已开放的 SSL VPN 配置写接口，不改后端协议，只补独立调试入口。
+                    </div>
+                </div>
+
+                <div class="qdms-actions">
+                    <button class="btn btn-primary" onclick="applySslVpnDebugTemplate()">生成请求体</button>
+                    <button class="btn btn-success" onclick="fillSslVpnDebugDeviceFromSelection()">从已同步设备回填</button>
+                </div>
+                <div class="qdms-note" style="margin-top:10px;">
+                    推荐用法：先在 <span class="qdms-path">QDMS联调</span> 页完成 <span class="qdms-path">/api/device/sync</span>，
+                    确保节点缓存里有 <code>deviceId -> deviceIp/devicePort</code> 映射；再在这里发送 <span class="qdms-path">/api/unified/command</span>。
+                </div>
+            </div>
+
+            <div class="qdms-card">
+                <h3>统一运维请求与响应</h3>
+                <div class="qdms-meta">
+                    <span class="qdms-tag">POST</span>
+                    <span class="qdms-path">/api/unified/command</span>
+                    <span class="qdms-subtle" id="sslVpnDebugPreviewNote">请求体会按当前设备、编码和操作生成，可继续手工修改。</span>
+                </div>
+
+                <div class="form-group">
+                    <label>请求体(JSON，可手工修改)</label>
+                    <textarea id="sslVpnDebugRequestBody" class="qdms-textarea" placeholder="请选择能力编码和操作后生成请求体"></textarea>
+                </div>
+
+                <div class="qdms-actions">
+                    <button class="btn btn-primary" onclick="executeSslVpnDebugRequest()">发送请求</button>
+                    <button class="btn btn-success" onclick="beautifySslVpnDebugRequestBody()">格式化请求体</button>
+                    <button class="btn" style="background:#eceff1;color:#37474f;" onclick="clearSslVpnDebugRequestBody()">清空请求体</button>
+                </div>
+
+                <div id="sslVpnDebugResponseAlert" style="margin-top:16px;"></div>
+                <div class="qdms-subtle" id="sslVpnDebugResponseMeta">响应信息会显示在这里</div>
+                <div class="result-box" id="sslVpnDebugResponseResult" style="min-height:240px;">请选择操作并生成请求体。</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Certificates -->
+    <div class="panel" id="panel-certificates">
+        <div class="alert alert-info">调试页面只调用 QDNS 正式证书接口，不直接绕过业务层。第三方证书输入区支持直接粘贴 PEM，CA 证书链支持连续多段 PEM 或每行一个 Base64(PEM)。</div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>设备选择</label>
+                <select id="certDeviceSelect" style="width:280px;">
+                    <option value="">-- 请选择设备 --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>CSR算法</label>
+                <select id="certAlgorithm" style="width:120px;">
+                    <option value="SM2">SM2</option>
+                    <option value="RSA">RSA</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Common Name</label>
+                <input type="text" id="certCommonName" placeholder="留空时由设备默认生成" style="width:220px;">
+            </div>
+            <div class="form-group">
+                <label>强制重建CSR</label>
+                <select id="certForceRegenerate" style="width:120px;">
+                    <option value="false">否</option>
+                    <option value="true">是</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <button class="btn btn-primary" onclick="certificateQueryStatus()">查询证书状态</button>
+            <button class="btn btn-primary" onclick="certificateReadDeviceCert()">读取设备证书</button>
+            <button class="btn btn-primary" onclick="certificateReadCaChain()">读取 CA 证书链</button>
+            <button class="btn btn-success" onclick="certificateReadCsr()">读取/生成设备 CSR</button>
+            <button class="btn btn-warning" onclick="certificateIssueSelfCa()">自建 CA 签发并下发</button>
+        </div>
+        <div class="form-row">
+            <div class="form-group" style="flex:1 1 420px;">
+                <label>第三方设备证书 PEM/Base64</label>
+                <textarea id="certificateDeviceCertInput" rows="8" placeholder="粘贴第三方设备证书 PEM 或 Base64(PEM)" style="min-width:420px;"></textarea>
+            </div>
+            <div class="form-group" style="flex:1 1 420px;">
+                <label>CA 证书链列表</label>
+                <textarea id="certificateCaChainInput" rows="8" placeholder="支持连续多段 PEM，或每行一条 Base64(PEM)。顺序固定为离设备最近的 CA 在前，根证书在最后。" style="min-width:420px;"></textarea>
+            </div>
+        </div>
+        <div class="form-row">
+            <button class="btn btn-danger" onclick="certificateInstallThirdParty()">安装第三方证书</button>
+        </div>
+        <div id="certificateAlert"></div>
+        <div id="certificateResult" class="result-box">请选择设备后执行证书调试操作。</div>
+    </div>
 </div>
 
 <script>
@@ -518,6 +961,7 @@
     window._discoverPage = 0;
     window._discoverPageSize = 10;
     window._discoverSelectedIdx = new Set();
+    window._qdmsDeviceMap = {};
 
     function togglePwd(inputId, btn) {
         const input = document.getElementById(inputId);
@@ -590,6 +1034,9 @@
         if (name === 'results') refreshResultList();
         if (name === 'alarms') loadAlarms();
         if (name === 'logs') loadLogDeviceSelect();
+        if (name === 'qdmsMock') loadQdmsDebugPanel();
+        if (name === 'sslVpnDebug') loadSslVpnDebugPanel();
+        if (name === 'certificates') loadCertificateDeviceSelect();
     }
 
     async function apiCall(url, method = 'GET', body = null) {
@@ -792,21 +1239,24 @@
             total = res.total != null ? res.total : total;
         }
 
+        window._deviceListCache = devices;
         let html = '<table><tr><th>ID</th><th>名称</th><th>IP</th><th>端口</th><th>厂家</th><th>类型</th><th>型号</th><th>协议</th><th>操作</th></tr>';
         for (const d of devices) {
             html += `<tr>
-                    <td style="font-size:11px;">${(d.id || '').substring(0, 8)}...</td>
+                    <td style="font-size:11px;" title="${escapeHtml(d.id || '')}">${formatDeviceId(d.id)}</td>
                     <td>${d.name || '-'}</td><td>${d.deviceIp || '-'}</td><td>${d.devicePort || '-'}</td>
                     <td>${d.manufacturer || '-'}</td><td>${d.deviceType || '-'}</td><td>${d.deviceModel || '-'}</td>
                     <td>${d.protocol || '-'}</td>
                     <td>
                         <button class="btn btn-primary" style="padding:4px 8px;font-size:11px;" onclick="collectOne('${d.id}')">采集</button>
+                        <button class="btn btn-success" style="padding:4px 8px;font-size:11px;" onclick="selectDeviceOpsTarget('${d.id}')">运维</button>
                         <button class="btn btn-danger" style="padding:4px 8px;font-size:11px;" onclick="removeDevice('${d.id}')">删除</button>
                     </td>
                 </tr>`;
         }
         html += '</table>';
         document.getElementById('deviceTable').innerHTML = html;
+        populateDeviceOpsSelect(devices);
         renderPager('devicePager', p, sz, total, 'device');
     }
 
@@ -848,6 +1298,1079 @@
     function escapeHtml(s) {
         if (s == null || s === '') return '';
         return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function formatDeviceId(id) {
+        if (!id) return '-';
+        return id.length > 12 ? (id.substring(0, 12) + '...') : id;
+    }
+
+    function populateDeviceOpsSelect(devices) {
+        const select = document.getElementById('deviceOpsSelect');
+        if (!select) return;
+        const current = select.value;
+        select.innerHTML = '<option value="">-- 请选择设备 --</option>';
+        for (const d of devices || []) {
+            const label = `${d.name || d.deviceIp || d.id} [${d.id || '-'}] (${d.deviceIp || '-'}:${d.devicePort || '-'})`;
+            const option = document.createElement('option');
+            option.value = d.id || '';
+            option.textContent = label;
+            select.appendChild(option);
+        }
+        if (current && Array.from(select.options).some(opt => opt.value === current)) {
+            select.value = current;
+        }
+    }
+
+    function selectDeviceOpsTarget(deviceId) {
+        const select = document.getElementById('deviceOpsSelect');
+        if (select) select.value = deviceId;
+        const resultBox = document.getElementById('deviceOpsResult');
+        if (resultBox) resultBox.textContent = `当前运维目标: ${deviceId}`;
+        const opsSection = document.getElementById('deviceOpsSelect');
+        if (opsSection && opsSection.scrollIntoView) {
+            opsSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+
+    function getSelectedDeviceOpsTarget() {
+        const deviceId = document.getElementById('deviceOpsSelect').value;
+        if (!deviceId) {
+            alert('请先选择设备');
+            return '';
+        }
+        return deviceId;
+    }
+
+    function setDeviceOpsFeedback(type, message, payload) {
+        const alertEl = document.getElementById('deviceOpsAlert');
+        const resultEl = document.getElementById('deviceOpsResult');
+        if (alertEl) {
+            alertEl.innerHTML = `<div class="alert ${type === 'success' ? 'alert-success' : type === 'info' ? 'alert-info' : 'alert-error'}">${escapeHtml(message)}</div>`;
+        }
+        if (resultEl) {
+            resultEl.textContent = payload != null ? JSON.stringify(sanitizeDeviceOpsPayload(payload), null, 2) : message;
+        }
+    }
+
+    function sanitizeLargePayload(payload) {
+        if (payload == null || typeof payload !== 'object') return payload;
+        const cloned = JSON.parse(JSON.stringify(payload));
+        sanitizeLargePayloadNode(cloned);
+        return cloned;
+    }
+
+    function sanitizeLargePayloadNode(node) {
+        if (!node || typeof node !== 'object') return;
+        if (Array.isArray(node)) {
+            node.forEach(item => sanitizeLargePayloadNode(item));
+            return;
+        }
+        for (const key of Object.keys(node)) {
+            const value = node[key];
+            if (typeof value === 'string' && key.toLowerCase().endsWith('base64') && value.length > 96) {
+                node[key + 'Preview'] = value.substring(0, 64) + '...';
+                node[key + 'Length'] = value.length;
+                delete node[key];
+                continue;
+            }
+            if (value && typeof value === 'object') {
+                sanitizeLargePayloadNode(value);
+            }
+        }
+    }
+
+    function sanitizeDeviceOpsPayload(payload) {
+        return sanitizeLargePayload(payload);
+    }
+
+    async function runUnifiedCommand(requestBody, actionLabel) {
+        setDeviceOpsFeedback('info', `${actionLabel}执行中...`, requestBody);
+        const res = await apiCall('/api/unified/command', 'POST', requestBody);
+        if (res.code !== 200 || !res.data) {
+            setDeviceOpsFeedback('error', `${actionLabel}失败: ${res.message || '未知错误'}`, res);
+            return null;
+        }
+        if (res.data.mode === 'ASYNC' && res.data.taskId) {
+            setDeviceOpsFeedback('info', `${actionLabel}已受理，任务ID=${res.data.taskId}`, res.data);
+            const finalTask = await pollUnifiedTask(res.data.taskId, actionLabel);
+            return finalTask ? { code: 200, data: finalTask } : null;
+        }
+        setDeviceOpsFeedback(res.data.status === 'SUCCESS' ? 'success' : 'error',
+            `${actionLabel}${res.data.status === 'SUCCESS' ? '成功' : '失败'}: ${res.data.statusMessage || ''}`,
+            res.data);
+        return res;
+    }
+
+    async function pollUnifiedTask(taskId, actionLabel) {
+        const deadline = Date.now() + 185000;
+        while (Date.now() < deadline) {
+            const res = await apiCall('/api/unified/task/' + encodeURIComponent(taskId));
+            if (res.code !== 200 || !res.data) {
+                setDeviceOpsFeedback('error', `${actionLabel}任务查询失败: ${res.message || '未知错误'}`, res);
+                return null;
+            }
+            const task = res.data;
+            setDeviceOpsFeedback(task.status === 'FAILED' ? 'error' : 'info',
+                `${actionLabel}任务状态: ${task.status}${task.statusMessage ? ' - ' + task.statusMessage : ''}`,
+                task);
+            if (task.status === 'SUCCESS' || task.status === 'FAILED') {
+                setDeviceOpsFeedback(task.status === 'SUCCESS' ? 'success' : 'error',
+                    `${actionLabel}${task.status === 'SUCCESS' ? '成功' : '失败'}: ${task.statusMessage || ''}`,
+                    task);
+                return task;
+            }
+            await sleep(1000);
+        }
+        setDeviceOpsFeedback('error', `${actionLabel}任务查询超时`, { taskId: taskId });
+        return null;
+    }
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function readFileAsBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const result = String(reader.result || '');
+                const index = result.indexOf(',');
+                resolve(index >= 0 ? result.substring(index + 1) : result);
+            };
+            reader.onerror = () => reject(reader.error || new Error('读取文件失败'));
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function decodeBase64ToBytes(base64) {
+        const raw = atob(base64);
+        const bytes = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) {
+            bytes[i] = raw.charCodeAt(i);
+        }
+        return bytes;
+    }
+
+    function downloadBase64Zip(filename, zipBase64) {
+        const bytes = decodeBase64ToBytes(zipBase64);
+        const blob = new Blob([bytes], { type: 'application/zip' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename || 'device-backup.zip';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
+    function syncQdmsV3Row() {
+        const useV3 = document.getElementById('qdmsSnmpVersion').value === 'SNMPv3';
+        const row = document.getElementById('qdmsV3Row');
+        if (row) row.style.display = useV3 ? 'flex' : 'none';
+    }
+
+    function getQdmsTargetOrigin() {
+        return window.location.origin || (window.location.protocol + '//' + window.location.host);
+    }
+
+    function parseIntegerOrNull(value, fallback) {
+        if (value == null || value === '') return fallback;
+        const parsed = parseInt(value, 10);
+        return isNaN(parsed) ? fallback : parsed;
+    }
+
+    function defaultQdmsRequestId() {
+        return 'qdms-debug-' + new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+    }
+
+    function ensureQdmsRequestId() {
+        const input = document.getElementById('qdmsRequestId');
+        if (!input.value.trim()) {
+            input.value = defaultQdmsRequestId();
+        }
+        return input.value.trim();
+    }
+
+    function splitQdmsDeviceIds(rawValue) {
+        return (rawValue || '')
+            .split(/[,\n]/)
+            .map(item => item.trim())
+            .filter(Boolean);
+    }
+
+    function populateQdmsDeviceSelect(devices) {
+        window._qdmsDeviceMap = {};
+        for (const device of devices || []) {
+            window._qdmsDeviceMap[device.id] = device;
+        }
+
+        ['qdmsDeviceSelect', 'sslVpnDebugDeviceSelect'].forEach(selectId => {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            const current = select.value;
+            select.innerHTML = '<option value="">-- 手动填写 / 还未同步 --</option>';
+            for (const device of devices || []) {
+                const option = document.createElement('option');
+                option.value = device.id || '';
+                option.textContent = `${device.name || device.deviceIp || device.id} [${device.id || '-'}] (${device.deviceIp || '-'}:${device.devicePort || '-'})`;
+                select.appendChild(option);
+            }
+            if (current && Array.from(select.options).some(opt => opt.value === current)) {
+                select.value = current;
+            }
+        });
+    }
+
+    const SSL_VPN_DEBUG_DEFINITIONS = {
+        '10000': {
+            capabilityName: '专线配置',
+            note: '这一组是 IKE / IPsec 专线基础协商、匿名协商、策略和隧道配置。',
+            operations: [
+                {
+                    operation: 'set_base_nego',
+                    label: '设置IKE基础协商',
+                    downstreamAction: 'ipc:req:web_agent2ipsec_agent:set_base_nego_info',
+                    requiredFields: ['interface_name', 'local_port', 'local_port_nat', 'ike_ver', 'auth_type'],
+                    payload: {
+                        interface_name: 'eth1',
+                        local_port: 500,
+                        local_port_nat: 4500,
+                        ike_ver: 'IKEv2',
+                        auth_type: '2'
+                    },
+                    note: '设置 IKE 基础协商参数。适合验证 QDNS 是否能把 IKE 基础配置正确下发到 VPN-Sim。'
+                },
+                {
+                    operation: 'set_anonymous_nego',
+                    label: '设置IKE匿名协商',
+                    downstreamAction: 'ipc:req:web_agent2ipsec_agent:set_anonymous_nego_info',
+                    requiredFields: ['status', 'ph1_algs', 'ph2_algs', 'ph1_ttl_range', 'ph2_ttl_range', 'encap_protocol', 'encap_mode'],
+                    payload: {
+                        status: 'enable',
+                        ph1_algs: 'SM4+SM2+SM3',
+                        ph2_algs: 'SM4+SM2+SM3',
+                        ph1_ttl_range: '3600-86400',
+                        ph2_ttl_range: '600-43200',
+                        encap_protocol: 'ESP',
+                        encap_mode: 'tunnel'
+                    },
+                    note: '设置 IKE 匿名协商参数，常用于快速验证协商算法、封装协议和封装模式。'
+                },
+                {
+                    operation: 'add_policy',
+                    label: '新增策略',
+                    downstreamAction: 'ipc:req:web_agent2ipsec_agent:add_policy_info',
+                    requiredFields: ['name', 'status', 'tu_name', 'src_addr', 'dst_addr', 'action', 'protocol'],
+                    payload: {
+                        name: 'policy-001',
+                        status: 'enable',
+                        tu_name: 'tun-001',
+                        src_addr: '172.15.0.0/16',
+                        dst_addr: '172.16.0.0/16',
+                        action: 'ipsec',
+                        protocol: 'any'
+                    },
+                    note: '新增 IPsec 策略。若 action=ipsec，tu_name 对应的隧道需要先存在。'
+                },
+                {
+                    operation: 'update_policy',
+                    label: '修改策略',
+                    downstreamAction: 'ipc:req:web_agent2ipsec_agent:change_policy_info',
+                    requiredFields: ['name', 'id', 'status', 'tu_name', 'src_addr', 'dst_addr', 'action', 'protocol'],
+                    payload: {
+                        name: 'policy-001',
+                        id: 'policy-0001',
+                        status: 'enable',
+                        tu_name: 'tun-001',
+                        src_addr: '172.15.0.0/16',
+                        dst_addr: '172.16.0.0/16',
+                        action: 'ipsec',
+                        protocol: 'any'
+                    },
+                    note: '修改现有 IPsec 策略。通常建议同时带上 id 和 name，方便定位目标策略。'
+                },
+                {
+                    operation: 'add_tunnel',
+                    label: '新增隧道',
+                    downstreamAction: 'ipc:req:web_agent2ipsec_agent:add_tun_info',
+                    requiredFields: ['name', 'local_addr_type', 'local_addr', 'remote_addr_type', 'remote_addr', 'ph1_algs', 'ph2_algs', 'encap_mode', 'ph1_ttl', 'ph2_ttl', 'encap_protocol', 'dpd_state', 'dpd_interval'],
+                    payload: {
+                        name: 'tun-001',
+                        local_addr_type: 'ip',
+                        local_addr: '192.168.10.1',
+                        remote_addr_type: 'ip',
+                        remote_addr: '192.168.20.1',
+                        ph1_algs: 'SM4+SM2+SM3',
+                        ph2_algs: 'SM4+SM2+SM3',
+                        encap_mode: 'tunnel',
+                        ph1_ttl: 28800,
+                        ph2_ttl: 3600,
+                        encap_protocol: 'ESP',
+                        dpd_state: 'enable',
+                        dpd_interval: 30
+                    },
+                    note: '新增 IPsec 隧道。这里的字段按 QDNS 已注册的统一运维必填项构造。'
+                },
+                {
+                    operation: 'update_tunnel',
+                    label: '修改隧道',
+                    downstreamAction: 'ipc:req:web_agent2ipsec_agent:change_tun_info',
+                    requiredFields: ['name', 'id', 'local_addr_type', 'local_addr', 'remote_addr_type', 'remote_addr', 'ph1_algs', 'ph2_algs', 'encap_mode', 'ph1_ttl', 'ph2_ttl', 'encap_protocol', 'dpd_state', 'dpd_interval'],
+                    payload: {
+                        name: 'tun-001',
+                        id: 'tun-0001',
+                        local_addr_type: 'ip',
+                        local_addr: '192.168.10.1',
+                        remote_addr_type: 'ip',
+                        remote_addr: '192.168.20.1',
+                        ph1_algs: 'SM4+SM2+SM3',
+                        ph2_algs: 'SM4+SM2+SM3',
+                        encap_mode: 'tunnel',
+                        ph1_ttl: 28800,
+                        ph2_ttl: 3600,
+                        encap_protocol: 'ESP',
+                        dpd_state: 'enable',
+                        dpd_interval: 30
+                    },
+                    note: '修改现有 IPsec 隧道。若想调验证书类能力，建议继续使用现有“证书管理”页签。'
+                }
+            ]
+        },
+        '10001': {
+            capabilityName: 'ACL配置',
+            note: '这一组用于 ACL 新增和删除。',
+            operations: [
+                {
+                    operation: 'add',
+                    label: '新增ACL',
+                    downstreamAction: 'ipc:req:web_agent2net_agent:add_acl',
+                    requiredFields: ['name', 'action', 'protocol', 'src_addr', 'dst_addr', 'time_limit_state', 'begin_time', 'end_time'],
+                    payload: {
+                        name: 'acl-001',
+                        action: 'allow',
+                        protocol: 'tcp',
+                        src_addr: '192.168.1.0/24',
+                        dst_addr: '172.16.0.0/16',
+                        time_limit_state: 'disable',
+                        begin_time: '00:00',
+                        end_time: '23:59'
+                    },
+                    note: '新增 ACL 规则。示例值主要用于生成模板，具体枚举值请以业务约定为准。'
+                },
+                {
+                    operation: 'delete',
+                    label: '删除ACL',
+                    downstreamAction: 'ipc:req:web_agent2net_agent:del_acl',
+                    requiredFields: ['id'],
+                    payload: {
+                        id: 'acl-0001'
+                    },
+                    note: '按 ACL 规则 ID 删除。'
+                }
+            ]
+        },
+        '10002': {
+            capabilityName: '路由配置',
+            note: '这一组用于静态路由新增和删除。',
+            operations: [
+                {
+                    operation: 'add',
+                    label: '新增路由',
+                    downstreamAction: 'ipc:req:web_agent2net_agent:add_route_info',
+                    requiredFields: ['dst_addr', 'mask', 'next_ip', 'interface_name', 'weight', 'distance'],
+                    payload: {
+                        dst_addr: '10.10.0.0',
+                        mask: '255.255.0.0',
+                        next_ip: '192.168.1.254',
+                        interface_name: 'eth1',
+                        weight: 10,
+                        distance: 1
+                    },
+                    note: '新增静态路由。'
+                },
+                {
+                    operation: 'delete',
+                    label: '删除路由',
+                    downstreamAction: 'ipc:req:web_agent2net_agent:del_route_info',
+                    requiredFields: ['dst_addr', 'mask', 'next_ip', 'interface_name'],
+                    payload: {
+                        dst_addr: '10.10.0.0',
+                        mask: '255.255.0.0',
+                        next_ip: '192.168.1.254',
+                        interface_name: 'eth1'
+                    },
+                    note: '按目标网段、掩码、下一跳和接口组合删除静态路由。'
+                }
+            ]
+        },
+        '10003': {
+            capabilityName: '白名单配置',
+            note: '这一组用于白名单新增、删除和状态切换。',
+            operations: [
+                {
+                    operation: 'add',
+                    label: '新增白名单',
+                    downstreamAction: 'ipc:req:web_agent2net_agent:add_whitelists',
+                    requiredFields: ['name', 'type', 'addr', 'state'],
+                    payload: {
+                        name: 'whitelist-001',
+                        type: 'ip',
+                        addr: '10.10.10.10',
+                        state: 'enable'
+                    },
+                    note: '新增白名单条目。'
+                },
+                {
+                    operation: 'delete',
+                    label: '删除白名单',
+                    downstreamAction: 'ipc:req:web_agent2net_agent:del_whitelists',
+                    requiredFields: ['id'],
+                    payload: {
+                        id: 'whitelist-0001'
+                    },
+                    note: '按白名单条目 ID 删除。'
+                },
+                {
+                    operation: 'update_state',
+                    label: '切换白名单状态',
+                    downstreamAction: 'ipc:req:web_agent2net_agent:change_whitelists',
+                    requiredFields: ['id', 'state'],
+                    payload: {
+                        id: 'whitelist-0001',
+                        state: 'disable'
+                    },
+                    note: '切换白名单条目的启停状态。'
+                }
+            ]
+        },
+        '10004': {
+            capabilityName: 'NAT配置',
+            note: '这一组用于 SNAT / DNAT 的新增和删除。',
+            operations: [
+                {
+                    operation: 'add_snat',
+                    label: '新增SNAT',
+                    downstreamAction: 'ipc:req:web_agent2net_agent:add_snat',
+                    requiredFields: ['name', 'src_addr', 'dst_addr'],
+                    payload: {
+                        name: 'snat-001',
+                        src_addr: '172.16.0.0/16',
+                        dst_addr: '10.0.0.0/8'
+                    },
+                    note: '新增 SNAT 规则。'
+                },
+                {
+                    operation: 'delete_snat',
+                    label: '删除SNAT',
+                    downstreamAction: 'ipc:req:web_agent2net_agent:del_snat',
+                    requiredFields: ['id'],
+                    payload: {
+                        id: 'snat-0001'
+                    },
+                    note: '按 SNAT 规则 ID 删除。'
+                },
+                {
+                    operation: 'add_dnat',
+                    label: '新增DNAT',
+                    downstreamAction: 'ipc:req:web_agent2net_agent:add_dnat',
+                    requiredFields: ['name', 'protocol', 'local_addr', 'local_port', 'external_addr', 'external_port'],
+                    payload: {
+                        name: 'dnat-001',
+                        protocol: 'tcp',
+                        local_addr: '192.168.1.10',
+                        local_port: 443,
+                        external_addr: '10.0.0.10',
+                        external_port: 8443
+                    },
+                    note: '新增 DNAT 规则。'
+                },
+                {
+                    operation: 'delete_dnat',
+                    label: '删除DNAT',
+                    downstreamAction: 'ipc:req:web_agent2net_agent:del_dnat',
+                    requiredFields: ['id'],
+                    payload: {
+                        id: 'dnat-0001'
+                    },
+                    note: '按 DNAT 规则 ID 删除。'
+                }
+            ]
+        }
+    };
+
+    function getSslVpnDebugDefinition(code, operation) {
+        const codeKey = String(code || '10000');
+        const capability = SSL_VPN_DEBUG_DEFINITIONS[codeKey] || SSL_VPN_DEBUG_DEFINITIONS['10000'];
+        const currentOperation = capability.operations.find(item => item.operation === operation) || capability.operations[0];
+        return {
+            code: codeKey,
+            capability: capability,
+            operation: currentOperation
+        };
+    }
+
+    function defaultSslVpnDebugRequestId() {
+        return 'sslvpn-debug-' + new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+    }
+
+    function ensureSslVpnDebugRequestId() {
+        const input = document.getElementById('sslVpnDebugRequestId');
+        if (!input.value.trim()) {
+            input.value = defaultSslVpnDebugRequestId();
+        }
+        return input.value.trim();
+    }
+
+    function getSslVpnDebugHelperValues() {
+        return {
+            deviceId: document.getElementById('sslVpnDebugDeviceId').value.trim() || 'qdms-device-0001',
+            requestId: document.getElementById('sslVpnDebugRequestId').value.trim(),
+            operator: document.getElementById('sslVpnDebugOperator').value.trim() || 'qdms',
+            code: document.getElementById('sslVpnDebugCode').value,
+            operation: document.getElementById('sslVpnDebugOperation').value
+        };
+    }
+
+    function buildSslVpnDebugUnifiedBody(values, payload) {
+        return {
+            requestId: values.requestId || ensureSslVpnDebugRequestId(),
+            deviceId: values.deviceId,
+            code: parseInt(values.code, 10),
+            operation: values.operation,
+            payload: payload || {},
+            operator: values.operator
+        };
+    }
+
+    function renderSslVpnDebugDefinition(definition) {
+        const hintEl = document.getElementById('sslVpnDebugHint');
+        const requiredEl = document.getElementById('sslVpnDebugRequiredFields');
+        const noteEl = document.getElementById('sslVpnDebugNote');
+        if (!definition || !hintEl || !requiredEl || !noteEl) return;
+
+        hintEl.innerHTML = `<strong>code ${escapeHtml(definition.code)}</strong> ${escapeHtml(definition.capability.capabilityName)} / <strong>${escapeHtml(definition.operation.operation)}</strong><br>下游动作：<code>${escapeHtml(definition.operation.downstreamAction)}</code>`;
+        if (definition.operation.requiredFields && definition.operation.requiredFields.length) {
+            requiredEl.innerHTML = definition.operation.requiredFields
+                .map(field => `<span class="qdms-field-chip">${escapeHtml(field)}</span>`)
+                .join('');
+        } else {
+            requiredEl.innerHTML = '<span class="qdms-field-chip-empty">当前操作没有必填字段</span>';
+        }
+        noteEl.textContent = `${definition.capability.note} ${definition.operation.note}`;
+    }
+
+    function syncSslVpnDebugOperations() {
+        const code = document.getElementById('sslVpnDebugCode').value;
+        const definition = getSslVpnDebugDefinition(code);
+        const select = document.getElementById('sslVpnDebugOperation');
+        const current = select.value;
+        select.innerHTML = '';
+        for (const operation of definition.capability.operations) {
+            const option = document.createElement('option');
+            option.value = operation.operation;
+            option.textContent = `${operation.label} (${operation.operation})`;
+            select.appendChild(option);
+        }
+        if (current && definition.capability.operations.some(item => item.operation === current)) {
+            select.value = current;
+        }
+        applySslVpnDebugTemplate();
+    }
+
+    function fillSslVpnDebugDeviceFromSelection() {
+        const select = document.getElementById('sslVpnDebugDeviceSelect');
+        if (!select || !select.value) return;
+        const device = window._qdmsDeviceMap[select.value];
+        if (!device) return;
+        document.getElementById('sslVpnDebugDeviceId').value = device.id || '';
+        document.getElementById('sslVpnDebugPreviewNote').textContent = `已回填设备 ${device.id || '-'}，如需刷新模板请点击“生成请求体”。`;
+    }
+
+    function applySslVpnDebugTemplate() {
+        const values = getSslVpnDebugHelperValues();
+        const definition = getSslVpnDebugDefinition(values.code, values.operation);
+        document.getElementById('sslVpnDebugOperation').value = definition.operation.operation;
+        renderSslVpnDebugDefinition(definition);
+        const requestBody = buildSslVpnDebugUnifiedBody(values, JSON.parse(JSON.stringify(definition.operation.payload || {})));
+        document.getElementById('sslVpnDebugRequestBody').value = JSON.stringify(requestBody, null, 2);
+        document.getElementById('sslVpnDebugPreviewNote').textContent =
+            `模板已按当前设备和操作生成：${definition.capability.capabilityName} / ${definition.operation.label}。`;
+    }
+
+    function beautifySslVpnDebugRequestBody() {
+        const textarea = document.getElementById('sslVpnDebugRequestBody');
+        const text = textarea.value.trim();
+        if (!text) return;
+        try {
+            textarea.value = JSON.stringify(JSON.parse(text), null, 2);
+        } catch (e) {
+            alert('请求体不是合法 JSON: ' + e.message);
+        }
+    }
+
+    function clearSslVpnDebugRequestBody() {
+        document.getElementById('sslVpnDebugRequestBody').value = '';
+    }
+
+    function renderSslVpnDebugResponse(type, title, payload, meta) {
+        document.getElementById('sslVpnDebugResponseAlert').innerHTML =
+            `<div class="alert ${type === 'success' ? 'alert-success' : type === 'info' ? 'alert-info' : 'alert-error'}">${escapeHtml(title)}</div>`;
+        document.getElementById('sslVpnDebugResponseMeta').textContent = meta || '响应信息会显示在这里';
+        document.getElementById('sslVpnDebugResponseResult').textContent =
+            typeof payload === 'string' ? payload : JSON.stringify(sanitizeLargePayload(payload), null, 2);
+    }
+
+    async function executeSslVpnDebugRequest() {
+        const bodyText = document.getElementById('sslVpnDebugRequestBody').value.trim();
+        if (!bodyText) {
+            alert('请先生成或填写请求体');
+            return;
+        }
+
+        let parsedBody = null;
+        try {
+            parsedBody = JSON.parse(bodyText);
+        } catch (e) {
+            alert('请求体不是合法 JSON: ' + e.message);
+            return;
+        }
+
+        if (!parsedBody.deviceId) {
+            alert('请求体中的 deviceId 不能为空');
+            return;
+        }
+        if (parsedBody.code == null || !parsedBody.operation) {
+            alert('请求体中的 code / operation 不能为空');
+            return;
+        }
+
+        const path = '/api/unified/command';
+        renderSslVpnDebugResponse('info', `正在发送 POST ${path}`, parsedBody, `目标节点: ${getQdmsTargetOrigin()}`);
+        const startedAt = Date.now();
+        try {
+            const response = await fetch(API + path, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(parsedBody)
+            });
+            const duration = Date.now() - startedAt;
+            const rawText = await response.text();
+            let payload = rawText;
+            try {
+                payload = rawText ? JSON.parse(rawText) : {};
+            } catch (e) {
+                payload = rawText;
+            }
+
+            const meta = `POST ${path} | HTTP ${response.status} | ${duration}ms`;
+            const ok = response.ok && (payload == null || payload.code == null || payload.code === 200);
+            renderSslVpnDebugResponse(ok ? 'success' : 'error', `${ok ? '请求成功' : '请求失败'}: POST ${path}`, payload, meta);
+        } catch (e) {
+            renderSslVpnDebugResponse('error', `请求异常: POST ${path}`, { message: e.message }, `POST ${path} | network error`);
+        }
+    }
+
+    async function loadSslVpnDebugPanel() {
+        const targetEl = document.getElementById('sslVpnDebugTargetOrigin');
+        if (targetEl) {
+            targetEl.value = getQdmsTargetOrigin();
+        }
+        await loadQdmsDeviceSelect();
+        syncSslVpnDebugOperations();
+        if (!document.getElementById('sslVpnDebugRequestBody').value.trim()) {
+            applySslVpnDebugTemplate();
+        }
+    }
+
+    async function loadQdmsDeviceSelect() {
+        const res = await apiCall('/api/device/list?page=0&size=500');
+        populateQdmsDeviceSelect(res.data || []);
+    }
+
+    function fillQdmsDeviceFieldsFromSelection() {
+        const select = document.getElementById('qdmsDeviceSelect');
+        if (!select || !select.value) return;
+        const device = window._qdmsDeviceMap[select.value];
+        if (!device) return;
+
+        document.getElementById('qdmsDeviceId').value = device.id || '';
+        document.getElementById('qdmsDeviceIp').value = device.deviceIp || '';
+        document.getElementById('qdmsDevicePort').value = device.devicePort || '161';
+        document.getElementById('qdmsDeviceName').value = device.name || '';
+        document.getElementById('qdmsManufacturer').value = device.manufacturer || 'QASKY';
+        document.getElementById('qdmsDeviceType').value = device.deviceType || 'QVPN';
+        document.getElementById('qdmsDeviceModel').value = device.deviceModel || 'QV-2000';
+        document.getElementById('qdmsSnmpVersion').value = device.protocol || 'SNMPv3';
+        document.getElementById('qdmsV3User').value = device.snmpV3Username || 'qasky';
+        document.getElementById('qdmsV3AuthProto').value = device.snmpV3AuthProtocol || 'SHA';
+        document.getElementById('qdmsV3Auth').value = device.snmpV3AuthPassword || 'qasky1234';
+        document.getElementById('qdmsV3PrivProto').value = device.snmpV3PrivProtocol || 'AES128';
+        document.getElementById('qdmsV3Priv').value = device.snmpV3PrivPassword || 'QaSky20191818';
+        syncQdmsV3Row();
+    }
+
+    function getQdmsHelperValues() {
+        return {
+            deviceId: document.getElementById('qdmsDeviceId').value.trim() || '0001',
+            deviceIp: document.getElementById('qdmsDeviceIp').value.trim() || '192.168.1.151',
+            devicePort: parseIntegerOrNull(document.getElementById('qdmsDevicePort').value.trim(), 161),
+            deviceName: document.getElementById('qdmsDeviceName').value.trim() || 'VPN-Sim-0001',
+            manufacturer: document.getElementById('qdmsManufacturer').value.trim() || 'QASKY',
+            deviceType: document.getElementById('qdmsDeviceType').value.trim() || 'QVPN',
+            deviceModel: document.getElementById('qdmsDeviceModel').value.trim() || 'QV-2000',
+            snmpVersion: document.getElementById('qdmsSnmpVersion').value,
+            snmpV3Username: document.getElementById('qdmsV3User').value.trim() || 'qasky',
+            snmpV3AuthProtocol: document.getElementById('qdmsV3AuthProto').value,
+            snmpV3AuthPassword: document.getElementById('qdmsV3Auth').value,
+            snmpV3PrivProtocol: document.getElementById('qdmsV3PrivProto').value,
+            snmpV3PrivPassword: document.getElementById('qdmsV3Priv').value,
+            requestId: document.getElementById('qdmsRequestId').value.trim(),
+            operator: document.getElementById('qdmsOperator').value.trim() || 'qdms',
+            page: parseIntegerOrNull(document.getElementById('qdmsPage').value.trim(), 0),
+            size: parseIntegerOrNull(document.getElementById('qdmsSize').value.trim(), 20),
+            logCount: parseIntegerOrNull(document.getElementById('qdmsLogCount').value.trim(), 50),
+            logSince: document.getElementById('qdmsLogSince').value.trim() || null,
+            upgradeVersion: document.getElementById('qdmsUpgradeVersion').value.trim() || 'V4.0.0-build20260415',
+            taskId: document.getElementById('qdmsTaskId').value.trim(),
+            batchDeviceIds: splitQdmsDeviceIds(document.getElementById('qdmsBatchDeviceIds').value)
+        };
+    }
+
+    function buildQdmsSyncBody(values) {
+        const body = {
+            deviceId: values.deviceId,
+            deviceIp: values.deviceIp,
+            devicePort: values.devicePort,
+            deviceName: values.deviceName,
+            manufacturer: values.manufacturer,
+            deviceType: values.deviceType,
+            deviceModel: values.deviceModel,
+            snmpVersion: values.snmpVersion
+        };
+        if (values.snmpVersion === 'SNMPv3') {
+            body.snmpV3Username = values.snmpV3Username;
+            body.snmpV3AuthPassword = values.snmpV3AuthPassword;
+            body.snmpV3PrivPassword = values.snmpV3PrivPassword;
+            body.snmpV3AuthProtocol = values.snmpV3AuthProtocol;
+            body.snmpV3PrivProtocol = values.snmpV3PrivProtocol;
+        }
+        return body;
+    }
+
+    function buildQdmsUnifiedBody(values, code, operation, payload) {
+        return {
+            requestId: values.requestId || ensureQdmsRequestId(),
+            deviceId: values.deviceId,
+            code: code,
+            operation: operation,
+            payload: payload || {},
+            operator: values.operator
+        };
+    }
+
+    function getQdmsPresetDefinition(presetName) {
+        const values = getQdmsHelperValues();
+        const restoreInput = document.getElementById('qdmsRestoreFile');
+        const restoreFile = restoreInput && restoreInput.files && restoreInput.files[0] ? restoreInput.files[0] : null;
+        const batchIds = values.batchDeviceIds.length ? values.batchDeviceIds : [values.deviceId, '0002'];
+        const definitions = {
+            nodeInfo: {
+                method: 'GET',
+                path: '/api/node/info',
+                body: null,
+                note: '获取节点 IP、端口、节点标识与 JVM 运行信息。常用于节点连通性检测。'
+            },
+            deviceSync: {
+                method: 'POST',
+                path: '/api/device/sync',
+                body: buildQdmsSyncBody(values),
+                note: 'QDMS 首次把设备下发到节点时应调用这个接口。deviceId 表示 QDMS 平台设备 ID，QDNS 会结合 deviceIp 与 devicePort 定位下游设备。'
+            },
+            deviceList: {
+                method: 'GET',
+                path: `/api/device/list?page=${values.page}&size=${values.size}`,
+                body: null,
+                note: '分页查询节点当前持有的设备。page 从 0 开始；size 小于等于 0 时表示返回全部。'
+            },
+            deviceStatus: {
+                method: 'GET',
+                path: `/api/device/status?id=${encodeURIComponent(values.deviceId)}`,
+                body: null,
+                note: '查询单台设备最近一次采集到的状态。'
+            },
+            deviceStatusAll: {
+                method: 'GET',
+                path: '/api/device/status/all',
+                body: null,
+                note: '查询节点缓存中的全部设备状态。'
+            },
+            collectOne: {
+                method: 'POST',
+                path: '/api/collector/collect',
+                body: {
+                    id: values.deviceId
+                },
+                note: '手动触发单台设备采集，POST 请求体使用 JSON，常用于运维完成后刷新状态。'
+            },
+            collectAll: {
+                method: 'POST',
+                path: '/api/collector/collectAll',
+                body: null,
+                note: '触发节点对全部设备做一次采集。'
+            },
+            logsFetch: {
+                method: 'POST',
+                path: '/api/device/logs/fetch',
+                body: {
+                    deviceId: values.deviceId,
+                    count: values.logCount,
+                    since: values.logSince
+                },
+                note: '按说明文档构造单台设备日志拉取请求。'
+            },
+            logsBatch: {
+                method: 'POST',
+                path: '/api/device/logs/batch',
+                body: {
+                    deviceIds: batchIds,
+                    count: values.logCount,
+                    since: values.logSince
+                },
+                note: '批量拉取指定设备日志，deviceIds 支持逗号或换行输入。'
+            },
+            logsFetchAll: {
+                method: 'POST',
+                path: '/api/device/logs/fetch-all',
+                body: {
+                    count: values.logCount,
+                    since: values.logSince
+                },
+                note: '拉取节点全部设备日志。'
+            },
+            unifiedBackup: {
+                method: 'POST',
+                path: '/api/unified/command',
+                body: buildQdmsUnifiedBody(values, 10005, 'backup', {}),
+                note: '提交统一运维备份命令。成功后 downstream 中会返回 zipBase64。'
+            },
+            unifiedRestore: {
+                method: 'POST',
+                path: '/api/unified/command',
+                body: buildQdmsUnifiedBody(values, 10006, 'restore', {
+                    zipBase64: restoreFile ? '<请点击“将恢复文件写入请求体”后发送>' : '<请先选择恢复备份 zip>',
+                    filename: restoreFile ? restoreFile.name : 'device-backup.zip'
+                }),
+                note: '恢复接口需要在 payload.zipBase64 中携带备份 zip 的 Base64 内容。'
+            },
+            unifiedUpgrade: {
+                method: 'POST',
+                path: '/api/unified/command',
+                body: buildQdmsUnifiedBody(values, 10007, 'upgrade', {
+                    version: values.upgradeVersion
+                }),
+                note: '升级为异步任务，发送后应继续轮询 /api/unified/task?taskId=...。'
+            },
+            unifiedReboot: {
+                method: 'POST',
+                path: '/api/unified/command',
+                body: buildQdmsUnifiedBody(values, 10008, 'reboot', {}),
+                note: '重启为异步任务，发送后应继续轮询 /api/unified/task?taskId=...。'
+            },
+            unifiedTask: {
+                method: 'GET',
+                path: `/api/unified/task?taskId=${encodeURIComponent(values.taskId || '请先填入taskId')}`,
+                body: null,
+                note: '查询统一运维异步任务状态。可直接粘贴上一步返回的 taskId。'
+            }
+        };
+        return definitions[presetName] || definitions.nodeInfo;
+    }
+
+    function syncQdmsRequestMeta() {
+        const method = document.getElementById('qdmsMethod').value;
+        const path = document.getElementById('qdmsPath').value.trim() || '/api/node/info';
+        document.getElementById('qdmsMethodBadge').textContent = method;
+        document.getElementById('qdmsPathBadge').textContent = path;
+    }
+
+    function applyQdmsPreset() {
+        const presetName = document.getElementById('qdmsPresetSelect').value;
+        const preset = getQdmsPresetDefinition(presetName);
+        document.getElementById('qdmsMethod').value = preset.method;
+        document.getElementById('qdmsPath').value = preset.path;
+        document.getElementById('qdmsRequestBody').value = preset.body == null ? '' : JSON.stringify(preset.body, null, 2);
+        document.getElementById('qdmsPresetHint').innerHTML =
+            `<strong>${escapeHtml(preset.method)}</strong> <span class="qdms-path">${escapeHtml(preset.path)}</span><br>${escapeHtml(preset.note)}`;
+        document.getElementById('qdmsPreviewNote').textContent = '模板已按当前表单刷新，可继续手工调整后发送。';
+        syncQdmsRequestMeta();
+    }
+
+    function beautifyQdmsRequestBody() {
+        const textarea = document.getElementById('qdmsRequestBody');
+        const text = textarea.value.trim();
+        if (!text) return;
+        try {
+            textarea.value = JSON.stringify(JSON.parse(text), null, 2);
+        } catch (e) {
+            alert('请求体不是合法 JSON: ' + e.message);
+        }
+    }
+
+    function clearQdmsRequestBody() {
+        document.getElementById('qdmsRequestBody').value = '';
+    }
+
+    async function injectQdmsRestoreFileToBody() {
+        const file = document.getElementById('qdmsRestoreFile').files[0];
+        if (!file) {
+            alert('请先选择恢复备份 zip 文件');
+            return;
+        }
+        const textarea = document.getElementById('qdmsRequestBody');
+        let body;
+        try {
+            body = textarea.value.trim() ? JSON.parse(textarea.value) : null;
+        } catch (e) {
+            alert('当前请求体不是合法 JSON，请先格式化或重新套用模板');
+            return;
+        }
+        if (!body || typeof body !== 'object') {
+            alert('请先套用“统一运维-恢复”模板');
+            return;
+        }
+        const zipBase64 = await readFileAsBase64(file);
+        if (!body.payload || typeof body.payload !== 'object') {
+            body.payload = {};
+        }
+        body.payload.zipBase64 = zipBase64;
+        body.payload.filename = file.name;
+        textarea.value = JSON.stringify(body, null, 2);
+        document.getElementById('qdmsPreviewNote').textContent = `已将 ${file.name} 转为 Base64 并写入请求体。`;
+    }
+
+    function renderQdmsResponse(type, title, payload, meta) {
+        document.getElementById('qdmsResponseAlert').innerHTML =
+            `<div class="alert ${type === 'success' ? 'alert-success' : type === 'info' ? 'alert-info' : 'alert-error'}">${escapeHtml(title)}</div>`;
+        document.getElementById('qdmsResponseMeta').textContent = meta || '响应信息会显示在这里';
+        document.getElementById('qdmsResponseResult').textContent =
+            typeof payload === 'string' ? payload : JSON.stringify(sanitizeLargePayload(payload), null, 2);
+    }
+
+    async function executeQdmsMockRequest() {
+        const method = document.getElementById('qdmsMethod').value;
+        const rawPath = document.getElementById('qdmsPath').value.trim();
+        const bodyText = document.getElementById('qdmsRequestBody').value.trim();
+
+        if (!rawPath) {
+            alert('请填写请求路径');
+            return;
+        }
+        if (rawPath.indexOf('请先填入taskId') >= 0) {
+            alert('请先填写任务ID');
+            return;
+        }
+
+        const path = rawPath.startsWith('/') ? rawPath : ('/' + rawPath);
+        const options = { method, headers: {} };
+        let parsedBody = null;
+
+        if (method !== 'GET' && method !== 'HEAD' && bodyText) {
+            try {
+                parsedBody = JSON.parse(bodyText);
+            } catch (e) {
+                alert('请求体不是合法 JSON: ' + e.message);
+                return;
+            }
+            options.headers['Content-Type'] = 'application/json';
+            options.body = JSON.stringify(parsedBody);
+            if (path === '/api/unified/command'
+                && parsedBody.code === 10006
+                && parsedBody.payload
+                && typeof parsedBody.payload.zipBase64 === 'string'
+                && parsedBody.payload.zipBase64.indexOf('<请') === 0) {
+                alert('请先点击“将恢复文件写入请求体”，再发送恢复请求');
+                return;
+            }
+        }
+
+        renderQdmsResponse('info', `正在发送 ${method} ${path}`, parsedBody || { path: path }, `目标节点: ${getQdmsTargetOrigin()}`);
+        const startedAt = Date.now();
+        try {
+            const response = await fetch(API + path, options);
+            const duration = Date.now() - startedAt;
+            const rawText = await response.text();
+            let payload = rawText;
+            try {
+                payload = rawText ? JSON.parse(rawText) : {};
+            } catch (e) {
+                payload = rawText;
+            }
+
+            const meta = `${method} ${path} | HTTP ${response.status} | ${duration}ms`;
+            const ok = response.ok && (payload == null || payload.code == null || payload.code === 200);
+            renderQdmsResponse(ok ? 'success' : 'error', `${ok ? '请求成功' : '请求失败'}: ${method} ${path}`, payload, meta);
+
+            if (path === '/api/device/sync' && ok) {
+                loadQdmsDeviceSelect();
+                loadDevices(0);
+            }
+
+            if (path === '/api/unified/command' && payload && payload.data && payload.data.taskId) {
+                document.getElementById('qdmsTaskId').value = payload.data.taskId;
+                if (document.getElementById('qdmsAutoPollTask').checked) {
+                    await pollQdmsTask(payload.data.taskId, path);
+                }
+            }
+        } catch (e) {
+            renderQdmsResponse('error', `请求异常: ${method} ${path}`, { message: e.message }, `${method} ${path} | network error`);
+        }
+    }
+
+    async function pollQdmsTask(taskId, sourcePath) {
+        const deadline = Date.now() + 185000;
+        while (Date.now() < deadline) {
+            const startedAt = Date.now();
+            const taskPath = '/api/unified/task?taskId=' + encodeURIComponent(taskId);
+            const res = await fetch(API + taskPath, { method: 'GET' });
+            const duration = Date.now() - startedAt;
+            const rawText = await res.text();
+            let payload = rawText;
+            try {
+                payload = rawText ? JSON.parse(rawText) : {};
+            } catch (e) {
+                payload = rawText;
+            }
+
+            const task = payload && payload.data ? payload.data : null;
+            const taskStatus = task && task.status ? task.status : 'UNKNOWN';
+            const meta = `GET ${taskPath} | HTTP ${res.status} | ${duration}ms | 来源 ${sourcePath}`;
+            renderQdmsResponse(taskStatus === 'SUCCESS' ? 'success' : taskStatus === 'FAILED' ? 'error' : 'info',
+                `异步任务轮询: ${taskStatus}${task && task.statusMessage ? ' - ' + task.statusMessage : ''}`,
+                payload,
+                meta);
+
+            if (taskStatus === 'SUCCESS' || taskStatus === 'FAILED') {
+                return;
+            }
+            await sleep(1000);
+        }
+        renderQdmsResponse('error', '异步任务轮询超时', { taskId: taskId }, `GET /api/unified/task/${taskId} | timeout`);
+    }
+
+    async function loadQdmsDebugPanel() {
+        const targetEl = document.getElementById('qdmsTargetOrigin');
+        if (targetEl) {
+            targetEl.value = getQdmsTargetOrigin();
+        }
+        syncQdmsV3Row();
+        await loadQdmsDeviceSelect();
+        if (!document.getElementById('qdmsRequestBody').value.trim()) {
+            applyQdmsPreset();
+        } else {
+            syncQdmsRequestMeta();
+        }
     }
 
     window._discoverResults = [];
@@ -995,23 +2518,141 @@
 
     async function addVpnSimDevices() {
         const trapFields = getTrapProtocolFields();
+        const startIp = document.getElementById('vpnSimStartIp').value.trim();
+        const count = parseInt(document.getElementById('vpnSimCount').value, 10) || 5;
+        const startId = parseInt(document.getElementById('vpnSimStartId').value, 10) || 1;
+        const protocol = document.getElementById('addDevProtocol').value;
+        if (!startIp) {
+            alert('请填写 VPN-Sim 起始IP');
+            return;
+        }
         const devices = [];
-        for (let i = 1; i <= 5; i++) {
-            devices.push({
-                deviceIp: '192.168.5.' + i,
-                devicePort: '161',
-                name: 'VPN-Sim-' + i,
-                manufacturer: 'QASKY',
-                deviceType: 'QVPN',
-                deviceModel: 'QV-2000',
-                protocol: 'SNMPv2c',
-                ...trapFields
-            });
+        try {
+            for (let i = 0; i < count; i++) {
+                const deviceId = String(startId + i).padStart(4, '0');
+                const device = {
+                    id: deviceId,
+                    deviceIp: incrementIpv4(startIp, i),
+                    devicePort: '161',
+                    name: 'VPN-Sim-' + deviceId,
+                    manufacturer: 'QASKY',
+                    deviceType: 'QVPN',
+                    deviceModel: 'QV-2000',
+                    protocol: protocol,
+                    ...trapFields
+                };
+                if (protocol === 'SNMPv3') {
+                    device.snmpV3Username = document.getElementById('addDevV3User').value;
+                    device.snmpV3AuthProtocol = document.getElementById('addDevV3AuthProto').value;
+                    device.snmpV3AuthPassword = document.getElementById('addDevV3Auth').value;
+                    device.snmpV3PrivProtocol = document.getElementById('addDevV3PrivProto').value;
+                    device.snmpV3PrivPassword = document.getElementById('addDevV3Priv').value;
+                }
+                devices.push(device);
+            }
+        } catch (e) {
+            document.getElementById('deviceAlert').innerHTML =
+                `<div class="alert alert-error">VPN-Sim 设备生成失败: ${escapeHtml(e.message || '未知错误')}</div>`;
+            return;
         }
         const res = await apiCall('/api/device/addBatch', 'POST', devices);
         document.getElementById('deviceAlert').innerHTML =
-            `<div class="alert alert-success">已添加 ${devices.length} 台VPN-Sim模拟设备（SNMPv2c, community=public）</div>`;
+            `<div class="alert ${res.code === 200 ? 'alert-success' : 'alert-error'}">` +
+            `已提交 ${devices.length} 台VPN-Sim模拟设备（起始ID ${String(startId).padStart(4, '0')}，协议 ${escapeHtml(protocol)}）` +
+            `${res.code === 200 ? '' : ' - ' + escapeHtml(res.message || '未知错误')}` +
+            `</div>`;
         loadDevices(0);
+    }
+
+    function incrementIpv4(baseIp, offset) {
+        const parts = baseIp.split('.').map(item => parseInt(item, 10));
+        if (parts.length !== 4 || parts.some(item => isNaN(item) || item < 0 || item > 255)) {
+            throw new Error('VPN-Sim起始IP格式不正确');
+        }
+        let value = ((parts[0] << 24) >>> 0) + (parts[1] << 16) + (parts[2] << 8) + parts[3];
+        value += offset;
+        return [
+            (value >>> 24) & 255,
+            (value >>> 16) & 255,
+            (value >>> 8) & 255,
+            value & 255
+        ].join('.');
+    }
+
+    async function backupDeviceByHttp() {
+        const deviceId = getSelectedDeviceOpsTarget();
+        if (!deviceId) return;
+        const res = await runUnifiedCommand({
+            deviceId: deviceId,
+            code: 10005,
+            operation: 'backup',
+            payload: {}
+        }, '导出备份');
+        if (!res || !res.data || !res.data.downstream || !res.data.downstream.zipBase64) {
+            return;
+        }
+        downloadBase64Zip(res.data.downstream.filename, res.data.downstream.zipBase64);
+        setDeviceOpsFeedback('success', '备份成功，已开始下载 zip 文件', res.data);
+    }
+
+    async function restoreDeviceByHttp() {
+        const deviceId = getSelectedDeviceOpsTarget();
+        if (!deviceId) return;
+        const file = document.getElementById('deviceRestoreFile').files[0];
+        if (!file) {
+            alert('请先选择要恢复的备份 zip 文件');
+            return;
+        }
+        try {
+            const zipBase64 = await readFileAsBase64(file);
+            await runUnifiedCommand({
+                deviceId: deviceId,
+                code: 10006,
+                operation: 'restore',
+                payload: {
+                    zipBase64: zipBase64,
+                    filename: file.name
+                }
+            }, '恢复备份');
+            await collectOne(deviceId, false);
+        } catch (e) {
+            setDeviceOpsFeedback('error', '恢复备份失败: ' + e.message, {});
+        }
+    }
+
+    async function upgradeDeviceByHttp() {
+        const deviceId = getSelectedDeviceOpsTarget();
+        if (!deviceId) return;
+        const version = document.getElementById('deviceUpgradeVersion').value.trim();
+        if (!version) {
+            alert('请输入升级版本');
+            return;
+        }
+        const res = await runUnifiedCommand({
+            deviceId: deviceId,
+            code: 10007,
+            operation: 'upgrade',
+            payload: {
+                version: version
+            }
+        }, '升级固件');
+        if (res && res.data && res.data.status === 'SUCCESS') {
+            await collectOne(deviceId, false);
+        }
+    }
+
+    async function rebootDeviceByHttp() {
+        const deviceId = getSelectedDeviceOpsTarget();
+        if (!deviceId) return;
+        const res = await runUnifiedCommand({
+            deviceId: deviceId,
+            code: 10008,
+            operation: 'reboot',
+            payload: {}
+        }, '重启设备');
+        if (res && res.data && res.data.status === 'SUCCESS') {
+            await collectOne(deviceId, false);
+        }
     }
 
     async function removeDevice(id) {
@@ -1025,13 +2666,18 @@
         }
     }
 
-    async function collectOne(id) {
+    async function collectOne(id, useAlert = true) {
         const res = await apiCall('/api/collector/collect/' + id, 'POST');
         if (res.data) {
-            alert(`采集完成: ${res.data.online ? '在线' : '离线'} CPU=${res.data.cpuUsage}%`);
+            if (useAlert) {
+                alert(`采集完成: ${res.data.online ? '在线' : '离线'} CPU=${res.data.cpuUsage}%`);
+            }
         } else {
-            alert('采集失败: ' + (res.message || ''));
+            if (useAlert) {
+                alert('采集失败: ' + (res.message || ''));
+            }
         }
+        return res;
     }
 
     async function triggerCollectAll() {
@@ -1334,10 +2980,10 @@
 
         if (s.tunnels && s.tunnels.length > 0) {
             html += `<div class="detail-section"><h3>隧道 (${s.tunnels.length})</h3>`;
-            html += '<table><tr><th>索引</th><th>名称</th><th>状态</th><th>本端</th><th>对端</th><th>算法</th></tr>';
+            html += '<table><tr><th>索引</th><th>名称</th><th>状态</th><th>本端</th><th>对端</th><th>算法</th><th>当前速率</th><th>吞吐量(60s)</th></tr>';
             for (const t of s.tunnels) {
                 const ts = t.status === 1 ? '<span class="status-badge status-online">运行</span>' : '<span class="status-badge status-offline">停止</span>';
-                html += `<tr><td>${t.index}</td><td>${t.name || '-'}</td><td>${ts}</td><td>${t.localAddr || '-'}</td><td>${t.remoteAddr || '-'}</td><td>${t.encryptAlgo || '-'}</td></tr>`;
+                html += `<tr><td>${t.index}</td><td>${t.name || '-'}</td><td>${ts}</td><td>${t.localAddr || '-'}</td><td>${t.remoteAddr || '-'}</td><td>${t.encryptAlgo || '-'}</td><td>${formatBitRate(t.currentRateBps)}</td><td>${formatBytes(t.throughputBytes)}</td></tr>`;
             }
             html += '</table></div>';
         }
@@ -1444,6 +3090,137 @@
             opt.dataset.ip = d.deviceIp || '';
             sel.appendChild(opt);
         }
+    }
+
+    async function loadCertificateDeviceSelect() {
+        const res = await apiCall('/api/device/list?page=0&size=200');
+        const devices = res.data || [];
+        const sel = document.getElementById('certDeviceSelect');
+        if (!sel) return;
+        const current = sel.value;
+        sel.innerHTML = '<option value="">-- 请选择设备 --</option>';
+        for (const d of devices) {
+            const opt = document.createElement('option');
+            opt.value = d.id;
+            opt.textContent = `${d.name || d.deviceIp} (${d.deviceIp})`;
+            sel.appendChild(opt);
+        }
+        if (current && devices.some(d => d.id === current)) {
+            sel.value = current;
+        }
+    }
+
+    function getCertificateDeviceId() {
+        const deviceId = document.getElementById('certDeviceSelect').value;
+        if (!deviceId) {
+            alert('请选择设备');
+            return '';
+        }
+        return deviceId;
+    }
+
+    function buildCertificateCommonPayload() {
+        const payload = {
+            algorithm: document.getElementById('certAlgorithm').value,
+            forceRegenerate: document.getElementById('certForceRegenerate').value === 'true'
+        };
+        const commonName = document.getElementById('certCommonName').value.trim();
+        if (commonName) payload.commonName = commonName;
+        return payload;
+    }
+
+    function buildCertificateQueryString(payload) {
+        const params = new URLSearchParams();
+        Object.keys(payload || {}).forEach(key => {
+            const value = payload[key];
+            if (value === undefined || value === null || value === '') return;
+            if (key === 'forceRegenerate' && value !== true) return;
+            params.append(key, value);
+        });
+        const text = params.toString();
+        return text ? ('?' + text) : '';
+    }
+
+    function splitCertificateChainInput(rawText) {
+        const text = (rawText || '').replace(/\r\n/g, '\n').trim();
+        if (!text) return [];
+        const pemBlocks = text.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g);
+        if (pemBlocks && pemBlocks.length) {
+            return pemBlocks.map(item => item.trim());
+        }
+        return text.split(/\n+/).map(item => item.trim()).filter(Boolean);
+    }
+
+    function renderCertificateResponse(title, res, data) {
+        const ok = res && res.code === 200;
+        document.getElementById('certificateAlert').innerHTML =
+            `<div class="alert ${ok ? 'alert-success' : 'alert-error'}">${title}${ok ? '成功' : '失败'}${ok ? '' : ': ' + (res.message || '未知错误')}</div>`;
+        const payload = data !== undefined ? data : (res && res.data ? res.data : res);
+        document.getElementById('certificateResult').textContent = JSON.stringify(payload, null, 2);
+    }
+
+    async function certificateQueryStatus() {
+        const deviceId = getCertificateDeviceId();
+        if (!deviceId) return;
+        const res = await apiCall(`/api/device-certificates/${encodeURIComponent(deviceId)}`);
+        renderCertificateResponse('查询证书状态', res, res.data);
+    }
+
+    async function certificateReadDeviceCert() {
+        const deviceId = getCertificateDeviceId();
+        if (!deviceId) return;
+        const res = await apiCall(`/api/device-certificates/${encodeURIComponent(deviceId)}/device-cert`);
+        renderCertificateResponse('读取设备证书', res, res.data && res.data.deviceCertificate ? res.data.deviceCertificate : res.data);
+    }
+
+    async function certificateReadCaChain() {
+        const deviceId = getCertificateDeviceId();
+        if (!deviceId) return;
+        const res = await apiCall(`/api/device-certificates/${encodeURIComponent(deviceId)}/ca-chain`);
+        renderCertificateResponse('读取CA证书链', res, res.data && res.data.caChain ? res.data.caChain : res.data);
+    }
+
+    async function certificateReadCsr() {
+        const deviceId = getCertificateDeviceId();
+        if (!deviceId) return;
+        const query = buildCertificateQueryString(buildCertificateCommonPayload());
+        const res = await apiCall(`/api/device-certificates/${encodeURIComponent(deviceId)}/csr${query}`);
+        renderCertificateResponse('读取/生成设备CSR', res, res.data && res.data.csr ? res.data.csr : res.data);
+    }
+
+    async function certificateIssueSelfCa() {
+        const deviceId = getCertificateDeviceId();
+        if (!deviceId) return;
+        const res = await apiCall(
+            `/api/device-certificates/${encodeURIComponent(deviceId)}/issue/self-ca`,
+            'POST',
+            buildCertificateCommonPayload()
+        );
+        renderCertificateResponse('自建CA签发并下发', res, res.data);
+    }
+
+    async function certificateInstallThirdParty() {
+        const deviceId = getCertificateDeviceId();
+        if (!deviceId) return;
+        const deviceCert = document.getElementById('certificateDeviceCertInput').value.trim();
+        const caChain = splitCertificateChainInput(document.getElementById('certificateCaChainInput').value);
+        if (!deviceCert) {
+            alert('请粘贴第三方设备证书');
+            return;
+        }
+        if (!caChain.length) {
+            alert('请粘贴CA证书链');
+            return;
+        }
+        const body = buildCertificateCommonPayload();
+        body.deviceCertPemBase64 = deviceCert;
+        body.caChainPemBase64List = caChain;
+        const res = await apiCall(
+            `/api/device-certificates/${encodeURIComponent(deviceId)}/install/third-party`,
+            'POST',
+            body
+        );
+        renderCertificateResponse('安装第三方证书', res, res.data);
     }
 
     async function fetchDeviceLogs() {
@@ -1631,6 +3408,13 @@
         if (speed >= 1000) return (speed / 1000) + ' Gbps';
         return speed + ' Mbps';
     }
+    function formatBitRate(bps) {
+        if (!bps) return '0 bps';
+        if (bps >= 1000000000) return (bps / 1000000000).toFixed(2) + ' Gbps';
+        if (bps >= 1000000) return (bps / 1000000).toFixed(2) + ' Mbps';
+        if (bps >= 1000) return (bps / 1000).toFixed(2) + ' Kbps';
+        return bps + ' bps';
+    }
 
     // Init
     syncAddV3Row();
@@ -1640,6 +3424,8 @@
     loadNodeInfo();
     loadDashboard();
     loadStats();
+    loadQdmsDebugPanel();
+    loadCertificateDeviceSelect();
 </script>
 </body>
 </html>

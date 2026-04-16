@@ -1,4 +1,4 @@
-# 集中参数（仅此一处维护；原各环境变量默认值已落在此）
+# Centralized defaults. Keep shared baseline values here.
 qdns:
   nacos:
     server-addr: 192.168.1.106:8848
@@ -17,7 +17,7 @@ qdns:
 #    port: 6379
 #    password: borsche2015
 
-    host: 192.168.1.106
+    host: 192.168.1.51
     port: 6379
     password: QaSky20191818
 

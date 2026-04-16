@@ -141,6 +141,8 @@ public class OidRegistry {
         tunnelTableColumns.add(new OidDefinition(EP + ".2.1.1.9", "tunnelEncryptAlgo", "OctetString", "隧道加密算法", true, "tunnel", qvTp, false));
         tunnelTableColumns.add(new OidDefinition(EP + ".2.1.1.10", "tunnelKeySource", "Integer32", "密钥来源", true, "tunnel", qvTp, false));
         tunnelTableColumns.add(new OidDefinition(EP + ".2.1.1.11", "tunnelRateLimitRule", "OctetString", "隧道限流规则", true, "tunnel", qvTp, true));
+        tunnelTableColumns.add(new OidDefinition(EP + ".2.1.1.12", "tunnelCurrentRate", "Gauge32", "隧道当前总速率(bps)", true, "tunnel", qvTp, false));
+        tunnelTableColumns.add(new OidDefinition(EP + ".2.1.1.13", "tunnelThroughputBytes", "Counter64", "隧道最近60秒吞吐量(字节)", true, "tunnel", qvTp, false));
 
         // IKE SA table columns: EP.5.1.1.{col}.{idx}
         ikeSaTableColumns = new ArrayList<>();

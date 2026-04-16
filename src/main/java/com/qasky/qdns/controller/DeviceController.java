@@ -107,6 +107,9 @@ public class DeviceController {
             device.setSnmpV3PrivProtocol(syncVO.getSnmpV3PrivProtocol());
             device.setSnmpV3PrivPassword(syncVO.getSnmpV3PrivPassword());
         }
+        device.setSshUsername(syncVO.getSshUsername());
+        device.setSshPassword(syncVO.getSshPassword());
+        device.setSshPort(syncVO.getSshPort());
         
         device.setCreateTime(new Date());
 
@@ -227,10 +230,26 @@ public class DeviceController {
     }
 
     /**
+     * 获取设备状态（GET 参数风格，兼容 QDMS 调用）
+     */
+    @GetMapping("/status")
+    public ResponseEntity<Map<String, Object>> getDeviceStatusByParam(@RequestParam Map<String, String> params) {
+        String deviceId = firstNonBlank(params.get("id"), params.get("deviceId"));
+        if (deviceId == null) {
+            return ResponseEntity.badRequest().body(errorResult("id不能为空"));
+        }
+        return buildDeviceStatusResponse(deviceId);
+    }
+
+    /**
      * 获取设备状态
      */
     @GetMapping("/status/{deviceId}")
     public ResponseEntity<Map<String, Object>> getDeviceStatus(@PathVariable String deviceId) {
+        return buildDeviceStatusResponse(deviceId);
+    }
+
+    private ResponseEntity<Map<String, Object>> buildDeviceStatusResponse(String deviceId) {
         DeviceStatus status = collectorService.getLatestStatus(deviceId);
         if (status == null) {
             return ResponseEntity.ok(errorResult("未找到设备状态，请先执行采集"));
@@ -308,5 +327,15 @@ public class DeviceController {
         result.put("code", 400);
         result.put("message", message);
         return result;
+    }
+
+    private String firstNonBlank(String first, String second) {
+        if (first != null && !first.trim().isEmpty()) {
+            return first.trim();
+        }
+        if (second != null && !second.trim().isEmpty()) {
+            return second.trim();
+        }
+        return null;
     }
 }

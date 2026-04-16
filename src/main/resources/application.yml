@@ -1,12 +1,12 @@
 server:
   port: 18023
 
-# 节点配置
+# Node settings
 qdns:
   node:
-    # 手动指定节点IP，未配置时自动获取本机IP
-    # 多网卡环境下建议手动指定，确保与Redis中的设备列表key一致
-    address: 192.168.1.106
+    # Set the node IP explicitly when auto-detection is not desired.
+    # In multi-NIC environments, keep this aligned with the Redis device-list key.
+    address: 192.168.1.37
 
 spring:
   application:
@@ -40,7 +40,7 @@ spring:
     time-zone: Asia/Shanghai
     default-property-inclusion: non_null
 
-# SNMP采集配置
+# SNMP collection settings
 snmp:
   default-protocol: SNMPv3
   sm:
@@ -63,37 +63,37 @@ snmp:
     auto-set-target: ${qdns.snmp.trap.auto-set-target:true}
     target-port: ${qdns.snmp.trap.target-port:1162}
 
-# 告警配置
+# Alarm settings
 alarm:
   enabled: ${qdns.alarm.enabled:true}
   platform-url: ${qdns.alarm.platform-url:}
   retry-count: ${qdns.alarm.retry-count:3}
   retry-interval-ms: ${qdns.alarm.retry-interval-ms:1000}
 
-# 采集调度配置
+# Collector scheduling
 collector:
   scan-interval: ${qdns.collector.scan-interval}
   initial-delay: 10
   thread-pool-size: 10
   batch-size: 50
-  # true：scan-interval 仅高频指标；full-scan-cron 全量（接口表、VPN 表等）
+  # When true, scan-interval runs only the frequent metrics and full-scan-cron runs full collection.
   split-schedule-enabled: ${qdns.collector.split-schedule-enabled:true}
-  # 全量采集 Cron，默认每天 02:00
+  # Full collection cron. Default is every day at 02:00.
   full-scan-cron: ${qdns.collector.full-scan-cron:0 0 2 * * ?}
 
-# Redis key配置
-# 管理平台分配设备列表的key格式为 ip:端口，prefix为空表示直接使用裸key
+# Redis key settings
+# The platform device-list key format is ip:port. Empty prefix means using the raw key directly.
 redis-key:
   device-list-prefix: ""
   device-status-prefix: "qdns:status:"
   device-status-ttl: 300
   trap-configured-prefix: "qdns:trap-configured:"
 
-# OID配置
+# OID settings
 oid:
   enterprise-prefix: "1.3.6.1.4.1.99999"
 
-# 日志配置
+# Logging
 logging:
   level:
     com.qasky.qdns: DEBUG
@@ -109,3 +109,41 @@ management:
   endpoint:
     health:
       show-details: always
+
+vpn-sim:
+  api:
+    port: ${qdns.vpn-sim.api.port:8888}
+    timeout:
+      connect: ${qdns.vpn-sim.api.timeout.connect:5000}
+      read: ${qdns.vpn-sim.api.timeout.read:30000}
+    poll:
+      interval-ms: ${qdns.vpn-sim.api.poll.interval-ms:1000}
+      timeout-ms: ${qdns.vpn-sim.api.poll.timeout-ms:180000}
+  ssl-vpn:
+    api-port: ${qdns.vpn-sim.ssl-vpn.api-port:8443}
+    timeout:
+      connect: ${qdns.vpn-sim.ssl-vpn.timeout.connect:5000}
+      read: ${qdns.vpn-sim.ssl-vpn.timeout.read:30000}
+    addressing-mode: ${qdns.vpn-sim.ssl-vpn.addressing-mode:ip}
+
+unified:
+  async:
+    thread-pool-size: ${qdns.unified.async.thread-pool-size:4}
+  task:
+    redis-prefix: ${qdns.unified.task.redis-prefix:qdns:unified:task:}
+    ttl-seconds: ${qdns.unified.task.ttl-seconds:86400}
+  ssh:
+    timeout:
+      connect: ${qdns.unified.ssh.timeout.connect:10000}
+      execute: ${qdns.unified.ssh.timeout.execute:30000}
+    output-log-max-length: ${qdns.unified.ssh.output-log-max-length:2048}
+    default-username: ${qdns.unified.ssh.default-username:}
+    default-password: ${qdns.unified.ssh.default-password:}
+
+certificate:
+  ca-service:
+    base-url: ${qdns.certificate.ca-service.base-url:http://192.168.1.106:18892/ca}
+    timeout:
+      connect: ${qdns.certificate.ca-service.timeout.connect:5000}
+      read: ${qdns.certificate.ca-service.timeout.read:15000}
+    default-valid-days: ${qdns.certificate.ca-service.default-valid-days:365}

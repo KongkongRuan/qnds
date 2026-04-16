@@ -12,17 +12,18 @@ public class PlatformDeviceSyncVO implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 管控平台分配的全局唯一设备ID
+     * QDMS 管控平台分配的全局唯一设备ID。
+     * QDNS 对外以该字段作为北向设备标识，不要求与 VPN-Sim 的 device_id 一致。
      */
     private String deviceId;
 
     /**
-     * 设备IP地址
+     * 设备IP地址。QDNS 会结合 devicePort 按设备地址定位下游设备。
      */
     private String deviceIp;
 
     /**
-     * 设备SNMP端口，默认161
+     * 设备SNMP端口，默认161。QDNS 会结合 deviceIp 按设备地址定位下游设备。
      */
     private Integer devicePort = 161;
 

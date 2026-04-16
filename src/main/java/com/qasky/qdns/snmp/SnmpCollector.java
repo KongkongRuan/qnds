@@ -63,6 +63,9 @@ public class SnmpCollector {
         if (mode == CollectMode.METRICS_ONLY) {
             collectScalarOidsFromDefinitions(status, host, port, protocol, deviceType, device,
                     oidRegistry.getMetricsScalarOids(deviceType));
+            if ("quantum_vpn".equals(deviceType) || "third_party_vpn".equals(deviceType)) {
+                collectTunnelTable(status, host, port, protocol, device);
+            }
             calculateDerivedValues(status);
             log.debug("设备高频采集完成: {} ({}) cpu={}% mem={}% disk={}%",
                     device.getName(), host,
@@ -391,6 +394,8 @@ public class SnmpCollector {
                 case 8: tunnel.setIkeRuleName(r.getValue()); break;
                 case 9: tunnel.setEncryptAlgo(r.getValue()); break;
                 case 10: tunnel.setKeySource(parseInt(r.getValue())); break;
+                case 12: tunnel.setCurrentRateBps(parseLong(r.getValue())); break;
+                case 13: tunnel.setThroughputBytes(parseLong(r.getValue())); break;
                 default: break;
             }
         }
