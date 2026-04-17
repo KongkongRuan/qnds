@@ -96,6 +96,8 @@ public class DeviceStatus implements Serializable {
         private static final long serialVersionUID = 1L;
         private int index;
         private String name;
+        private String macAddress;
+        private String ipAddress;
         private int ifType;
         private long speed;
         private int adminStatus;

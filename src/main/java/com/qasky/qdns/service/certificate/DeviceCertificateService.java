@@ -1,19 +1,28 @@
 package com.qasky.qdns.service.certificate;
 
+import com.qasky.qdns.model.DeviceInfo;
 import com.qasky.qdns.model.dto.UnifiedCommandRequest;
 import com.qasky.qdns.model.dto.UnifiedCommandResponseData;
+import com.qasky.qdns.model.dto.certificate.DeviceCertificateHttpDeviceInfo;
+import com.qasky.qdns.model.dto.certificate.DeviceCertificateHttpView;
 import com.qasky.qdns.model.dto.certificate.DeviceCsrRequest;
 import com.qasky.qdns.model.dto.certificate.SelfCaIssueRequest;
+import com.qasky.qdns.model.dto.certificate.SelfCaIssueHttpResponse;
 import com.qasky.qdns.model.dto.certificate.ThirdPartyInstallRequest;
+import com.qasky.qdns.service.DeviceCollectorService;
 import com.qasky.qdns.service.unified.UnifiedCommandService;
+import com.yxj.gm.cert.CertParseVo;
+import com.yxj.gm.util.CertResolver;
 import org.springframework.stereotype.Service;
 
 import javax.security.auth.x500.X500Principal;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -39,11 +48,14 @@ public class DeviceCertificateService {
 
     private final UnifiedCommandService unifiedCommandService;
     private final CAServiceClient caServiceClient;
+    private final DeviceCollectorService deviceCollectorService;
 
     public DeviceCertificateService(UnifiedCommandService unifiedCommandService,
-                                    CAServiceClient caServiceClient) {
+                                    CAServiceClient caServiceClient,
+                                    DeviceCollectorService deviceCollectorService) {
         this.unifiedCommandService = unifiedCommandService;
         this.caServiceClient = caServiceClient;
+        this.deviceCollectorService = deviceCollectorService;
     }
 
     public Map<String, Object> queryCertificateStatus(String deviceId) {
@@ -117,7 +129,12 @@ public class DeviceCertificateService {
         return result;
     }
 
-    public Map<String, Object> issueSelfCa(String deviceId, SelfCaIssueRequest request) {
+    public SelfCaIssueHttpResponse issueSelfCa(String deviceId, SelfCaIssueRequest request) {
+        Map<String, Object> detail = issueSelfCaDetailed(deviceId, request);
+        return buildSelfCaHttpResponse(deviceId, detail);
+    }
+
+    private Map<String, Object> issueSelfCaDetailed(String deviceId, SelfCaIssueRequest request) {
         DeviceCsrRequest csrRequest = new DeviceCsrRequest();
         if (request != null) {
             csrRequest.setAlgorithm(request.getAlgorithm());
@@ -329,6 +346,52 @@ public class DeviceCertificateService {
         return install;
     }
 
+    private SelfCaIssueHttpResponse buildSelfCaHttpResponse(String deviceId, Map<String, Object> detail) {
+        Map<String, Object> caIssue = asMap(detail.get("caIssue"));
+        CertificateSnapshot issuedCertificate = parseCertificateSnapshot(
+                requireText(caIssue.get("deviceCertPemBase64"), "自建CA未返回设备证书")
+        );
+
+        Map<String, Object> verification = asMap(detail.get("verification"));
+        Map<String, Object> readDeviceCert = asMap(verification.get("readDeviceCert"));
+        Map<String, Object> readDeviceCertDownstream = asMap(readDeviceCert.get("downstream"));
+
+        SelfCaIssueHttpResponse response = new SelfCaIssueHttpResponse();
+        response.setDevice(buildDeviceInfoView(deviceId));
+        response.setDeviceCertificate(buildDeviceCertificateView(readDeviceCertDownstream, issuedCertificate));
+        response.setCaSerialNumber(issuedCertificate.getSerialNumberDecimal());
+        return response;
+    }
+
+    private DeviceCertificateHttpDeviceInfo buildDeviceInfoView(String deviceId) {
+        DeviceInfo device = deviceCollectorService.getDeviceById(deviceId);
+        DeviceCertificateHttpDeviceInfo view = new DeviceCertificateHttpDeviceInfo();
+        view.setDeviceId(deviceId);
+        if (device == null) {
+            return view;
+        }
+        view.setDeviceName(device.getName());
+        view.setDeviceIp(device.getDeviceIp());
+        view.setDevicePort(device.getDevicePort());
+        view.setManufacturer(device.getManufacturer());
+        view.setDeviceType(device.getDeviceType());
+        view.setDeviceModel(device.getDeviceModel());
+        return view;
+    }
+
+    private DeviceCertificateHttpView buildDeviceCertificateView(Map<String, Object> readback,
+                                                                 CertificateSnapshot fallback) {
+        DeviceCertificateHttpView view = new DeviceCertificateHttpView();
+        view.setCertPem(preferText(asString(readback.get("deviceCertPem")), fallback.getCertPem()));
+        view.setCertPemBase64(preferText(asString(readback.get("deviceCertPemBase64")), fallback.getCertPemBase64()));
+        view.setFingerprint(preferText(asString(readback.get("deviceCertFingerprint")), fallback.getFingerprint()));
+        view.setSubject(preferText(asString(readback.get("deviceCertSubject")), fallback.getSubject()));
+        view.setIssuer(preferText(asString(readback.get("deviceCertIssuer")), fallback.getIssuer()));
+        view.setNotBefore(preferText(asString(readback.get("deviceCertNotBefore")), fallback.getNotBefore()));
+        view.setNotAfter(preferText(asString(readback.get("deviceCertNotAfter")), fallback.getNotAfter()));
+        return view;
+    }
+
     private Map<String, Object> safeCaStatusCheck(String certPemBase64) {
         try {
             Map<String, Object> data = caServiceClient.queryCertificateStatus(certPemBase64);
@@ -407,26 +470,85 @@ public class DeviceCertificateService {
 
     private Map<String, Object> summarizeCertificate(String certPemBase64) {
         try {
-            String pemText = decodePemText(certPemBase64);
-            byte[] derBytes = pemToDer(pemText);
-            X509Certificate certificate = (X509Certificate) CertificateFactory.getInstance("X.509")
-                    .generateCertificate(new ByteArrayInputStream(derBytes));
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] fingerprint = digest.digest(certificate.getEncoded());
-
+            CertificateSnapshot snapshot = parseCertificateSnapshot(certPemBase64);
             Map<String, Object> result = new LinkedHashMap<String, Object>();
-            result.put("serialNumber", certificate.getSerialNumber().toString(16).toUpperCase(Locale.ROOT));
-            result.put("fingerprint", toHex(fingerprint));
-            result.put("subject", principalName(certificate.getSubjectX500Principal()));
-            result.put("issuer", principalName(certificate.getIssuerX500Principal()));
-            result.put("notBefore", formatDate(certificate.getNotBefore()));
-            result.put("notAfter", formatDate(certificate.getNotAfter()));
+            result.put("serialNumber", snapshot.getSerialNumberHex());
+            result.put("serialNumberDecimal", snapshot.getSerialNumberDecimal());
+            result.put("fingerprint", snapshot.getFingerprint());
+            result.put("subject", snapshot.getSubject());
+            result.put("issuer", snapshot.getIssuer());
+            result.put("notBefore", snapshot.getNotBefore());
+            result.put("notAfter", snapshot.getNotAfter());
             result.put("certPemBase64", certPemBase64);
             return result;
         } catch (DeviceCertificateException e) {
             throw e;
         } catch (Exception e) {
             throw new DeviceCertificateException(400, "解析设备证书失败: " + e.getMessage());
+        }
+    }
+
+    private CertificateSnapshot parseCertificateSnapshot(String certPemBase64) {
+        try {
+            String pemText = decodePemText(certPemBase64);
+            byte[] derBytes = pemToDer(pemText);
+            try {
+                return parseCertificateSnapshotWithJca(certPemBase64, pemText, derBytes);
+            } catch (Exception jcaException) {
+                return parseCertificateSnapshotWithGmJava(certPemBase64, pemText, derBytes, jcaException);
+            }
+        } catch (DeviceCertificateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new DeviceCertificateException(400, "解析设备证书失败: " + e.getMessage());
+        }
+    }
+
+    private CertificateSnapshot parseCertificateSnapshotWithJca(String certPemBase64,
+                                                                String pemText,
+                                                                byte[] derBytes) throws Exception {
+        X509Certificate certificate = (X509Certificate) CertificateFactory.getInstance("X.509")
+                .generateCertificate(new ByteArrayInputStream(derBytes));
+        CertificateSnapshot snapshot = new CertificateSnapshot();
+        snapshot.setSerialNumberDecimal(certificate.getSerialNumber().toString());
+        snapshot.setSerialNumberHex(certificate.getSerialNumber().toString(16).toUpperCase(Locale.ROOT));
+        snapshot.setFingerprint(sha256FingerprintHex(certificate.getEncoded()));
+        snapshot.setSubject(principalName(certificate.getSubjectX500Principal()));
+        snapshot.setIssuer(principalName(certificate.getIssuerX500Principal()));
+        snapshot.setNotBefore(formatDate(certificate.getNotBefore()));
+        snapshot.setNotAfter(formatDate(certificate.getNotAfter()));
+        snapshot.setCertPem(pemText);
+        snapshot.setCertPemBase64(certPemBase64);
+        return snapshot;
+    }
+
+    private CertificateSnapshot parseCertificateSnapshotWithGmJava(String certPemBase64,
+                                                                   String pemText,
+                                                                   byte[] derBytes,
+                                                                   Exception jcaException) {
+        try {
+            CertParseVo certParseVo = CertResolver.parseCert(derBytes);
+            if (certParseVo == null || certParseVo.getSerial() == null || certParseVo.getSerial().length == 0) {
+                throw new DeviceCertificateException(400, "gm-java未解析出证书序列号");
+            }
+
+            BigInteger serialNumber = new BigInteger(1, certParseVo.getSerial());
+            CertificateSnapshot snapshot = new CertificateSnapshot();
+            snapshot.setSerialNumberDecimal(serialNumber.toString());
+            snapshot.setSerialNumberHex(serialNumber.toString(16).toUpperCase(Locale.ROOT));
+            snapshot.setFingerprint(sha256FingerprintHex(derBytes));
+            snapshot.setSubject(asNonBlank(certParseVo.getOwnerSubject()));
+            snapshot.setIssuer(asNonBlank(certParseVo.getIssuerSubject()));
+            snapshot.setNotBefore(normalizeGmDate(certParseVo.getStartTime()));
+            snapshot.setNotAfter(normalizeGmDate(certParseVo.getEndTime()));
+            snapshot.setCertPem(pemText);
+            snapshot.setCertPemBase64(certPemBase64);
+            return snapshot;
+        } catch (DeviceCertificateException e) {
+            throw e;
+        } catch (Exception gmException) {
+            throw new DeviceCertificateException(400,
+                    "解析设备证书失败: JCA解析失败(" + jcaException.getMessage() + "), gm-java解析失败(" + gmException.getMessage() + ")");
         }
     }
 
@@ -484,5 +606,125 @@ public class DeviceCertificateService {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    private String sha256FingerprintHex(byte[] encodedCertificate) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        return toHex(digest.digest(encodedCertificate));
+    }
+
+    private String normalizeGmDate(String gmDate) {
+        if (!hasText(gmDate)) {
+            return null;
+        }
+        List<String> patterns = Arrays.asList("yyyy年MM月dd日 HH:mm:ss", "yyy年MM月dd日 HH:mm:ss");
+        for (String pattern : patterns) {
+            try {
+                Date parsed = new SimpleDateFormat(pattern).parse(gmDate.trim());
+                return formatDate(parsed);
+            } catch (ParseException ignored) {
+                // try next pattern
+            }
+        }
+        return gmDate.trim();
+    }
+
+    private String asNonBlank(String value) {
+        return hasText(value) ? value.trim() : null;
+    }
+
+    private String preferText(String preferred, String fallback) {
+        return hasText(preferred) ? preferred : fallback;
+    }
+
+    private Map<String, Object> asMap(Object value) {
+        if (value instanceof Map) {
+            return (Map<String, Object>) value;
+        }
+        return Collections.emptyMap();
+    }
+
+    private static class CertificateSnapshot {
+        private String serialNumberDecimal;
+        private String serialNumberHex;
+        private String fingerprint;
+        private String subject;
+        private String issuer;
+        private String notBefore;
+        private String notAfter;
+        private String certPem;
+        private String certPemBase64;
+
+        public String getSerialNumberDecimal() {
+            return serialNumberDecimal;
+        }
+
+        public void setSerialNumberDecimal(String serialNumberDecimal) {
+            this.serialNumberDecimal = serialNumberDecimal;
+        }
+
+        public String getSerialNumberHex() {
+            return serialNumberHex;
+        }
+
+        public void setSerialNumberHex(String serialNumberHex) {
+            this.serialNumberHex = serialNumberHex;
+        }
+
+        public String getFingerprint() {
+            return fingerprint;
+        }
+
+        public void setFingerprint(String fingerprint) {
+            this.fingerprint = fingerprint;
+        }
+
+        public String getSubject() {
+            return subject;
+        }
+
+        public void setSubject(String subject) {
+            this.subject = subject;
+        }
+
+        public String getIssuer() {
+            return issuer;
+        }
+
+        public void setIssuer(String issuer) {
+            this.issuer = issuer;
+        }
+
+        public String getNotBefore() {
+            return notBefore;
+        }
+
+        public void setNotBefore(String notBefore) {
+            this.notBefore = notBefore;
+        }
+
+        public String getNotAfter() {
+            return notAfter;
+        }
+
+        public void setNotAfter(String notAfter) {
+            this.notAfter = notAfter;
+        }
+
+        public String getCertPem() {
+            return certPem;
+        }
+
+        public void setCertPem(String certPem) {
+            this.certPem = certPem;
+        }
+
+        public String getCertPemBase64() {
+            return certPemBase64;
+        }
+
+        public void setCertPemBase64(String certPemBase64) {
+            this.certPemBase64 = certPemBase64;
+        }
     }
 }

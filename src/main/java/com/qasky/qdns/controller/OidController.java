@@ -66,6 +66,7 @@ public class OidController {
         result.put("code", 200);
         result.put("ifTable", oidRegistry.getIfTableColumns());
         result.put("ifxTable", oidRegistry.getIfxTableColumns());
+        result.put("ipAddrTable", oidRegistry.getIpAddrTableColumns());
         result.put("tunnelTable", oidRegistry.getTunnelTableColumns());
         result.put("ikeSaTable", oidRegistry.getIkeSaTableColumns());
         result.put("ipsecSaTable", oidRegistry.getIpsecSaTableColumns());

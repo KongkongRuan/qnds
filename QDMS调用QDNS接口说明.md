@@ -238,6 +238,11 @@
 }
 ```
 
+说明：
+
+- 即使是查询类统一运维能力，也仍然统一使用 `POST /api/unified/command`。
+- 查询条件统一放在 `payload` 中；不要改成 `GET`，也不要把分页、名称等业务参数拼到 URI 路径里。
+
 通用返回体：
 
 ```json
@@ -301,27 +306,47 @@
 
 当前 `QDNS` 已注册的统一运维能力如下。
 
-### 8.1 SSL VPN 配置类
+### 8.1 SSL VPN 配置 / 查询类
 
 | code | operation | mode | 说明 | 必填字段 |
 | --- | --- | --- | --- | --- |
 | `10000` | `set_base_nego` | `SYNC` | 基础协商配置 | `interface_name`, `local_port`, `local_port_nat`, `ike_ver`, `auth_type` |
+| `10000` | `get_base_nego` | `SYNC` | 查询基础协商配置 | 无 |
 | `10000` | `set_anonymous_nego` | `SYNC` | 匿名协商配置 | `status`, `ph1_algs`, `ph2_algs`, `ph1_ttl_range`, `ph2_ttl_range`, `encap_protocol`, `encap_mode` |
+| `10000` | `get_anonymous_nego` | `SYNC` | 查询匿名协商配置 | 无 |
 | `10000` | `add_policy` | `SYNC` | 新增策略 | `name`, `status`, `tu_name`, `src_addr`, `dst_addr`, `action`, `protocol` |
 | `10000` | `update_policy` | `SYNC` | 修改策略 | `name`, `id`, `status`, `tu_name`, `src_addr`, `dst_addr`, `action`, `protocol` |
+| `10000` | `get_policy_list` | `SYNC` | 查询策略列表 | `page`, `rows` |
+| `10000` | `get_policy_info` | `SYNC` | 查询策略详情 | `name` |
+| `10000` | `get_policy_state_list` | `SYNC` | 查询策略状态列表 | 无 |
 | `10000` | `add_tunnel` | `SYNC` | 新增隧道 | `name`, `local_addr_type`, `local_addr`, `remote_addr_type`, `remote_addr`, `ph1_algs`, `ph2_algs`, `encap_mode`, `ph1_ttl`, `ph2_ttl`, `encap_protocol`, `dpd_state`, `dpd_interval` |
 | `10000` | `update_tunnel` | `SYNC` | 修改隧道 | `name`, `id`, `local_addr_type`, `local_addr`, `remote_addr_type`, `remote_addr`, `ph1_algs`, `ph2_algs`, `encap_mode`, `ph1_ttl`, `ph2_ttl`, `encap_protocol`, `dpd_state`, `dpd_interval` |
+| `10000` | `get_tunnel_list` | `SYNC` | 查询隧道列表 | `page`, `rows` |
+| `10000` | `get_tunnel_info` | `SYNC` | 查询隧道详情 | `name` |
 | `10001` | `add` | `SYNC` | 新增 ACL | `name`, `action`, `protocol`, `src_addr`, `dst_addr`, `time_limit_state`, `begin_time`, `end_time` |
 | `10001` | `delete` | `SYNC` | 删除 ACL | `id` |
+| `10001` | `get_acl_list` | `SYNC` | 查询 ACL 列表 | `page`, `rows` |
 | `10002` | `add` | `SYNC` | 新增路由 | `dst_addr`, `mask`, `next_ip`, `interface_name`, `weight`, `distance` |
 | `10002` | `delete` | `SYNC` | 删除路由 | `dst_addr`, `mask`, `next_ip`, `interface_name` |
+| `10002` | `get_route_list` | `SYNC` | 查询路由列表 | `page`, `rows` |
 | `10003` | `add` | `SYNC` | 新增白名单 | `name`, `type`, `addr`, `state` |
 | `10003` | `delete` | `SYNC` | 删除白名单 | `id` |
 | `10003` | `update_state` | `SYNC` | 修改白名单状态 | `id`, `state` |
+| `10003` | `get_whitelist_state` | `SYNC` | 查询白名单总状态 | 无 |
+| `10003` | `get_whitelist_list` | `SYNC` | 查询白名单列表 | `page`, `rows` |
 | `10004` | `add_snat` | `SYNC` | 新增 SNAT | `name`, `src_addr`, `dst_addr` |
 | `10004` | `delete_snat` | `SYNC` | 删除 SNAT | `id` |
+| `10004` | `get_snat_list` | `SYNC` | 查询 SNAT 列表 | `page`, `rows` |
 | `10004` | `add_dnat` | `SYNC` | 新增 DNAT | `name`, `protocol`, `local_addr`, `local_port`, `external_addr`, `external_port` |
 | `10004` | `delete_dnat` | `SYNC` | 删除 DNAT | `id` |
+| `10004` | `get_dnat_list` | `SYNC` | 查询 DNAT 列表 | `page`, `rows` |
+
+说明：
+
+- 这一组能力无论是“写”还是“查”，统一都走 `POST /api/unified/command`。
+- 列表查询时，分页参数 `page`、`rows` 写在 `payload` 中；详情查询时，把 `name` 等过滤条件写在 `payload` 中。
+- `get_policy_state_list` 的 `payload.name` 为可选过滤条件；不传时返回全部策略状态。
+- `get_tunnel_list` / `get_tunnel_info` 在 `QDNS` 北向使用 `tunnel` 命名，下游会映射到 `VPN-Sim` 的 `get_tun_list` / `get_tun_info` IPC。
 
 ### 8.2 设备运维类
 
@@ -505,7 +530,115 @@
 - `reboot` 为异步任务。
 - `QDNS` 会在后台轮询设备状态，恢复在线后任务才结束。
 
-### 9.5 查询或生成设备 CSR
+### 9.5 查询 IKE 基础协商
+
+请求：
+
+```json
+{
+  "requestId": "sslvpn-query-0001",
+  "deviceId": "qdms-device-0001",
+  "code": 10000,
+  "operation": "get_base_nego",
+  "payload": {},
+  "operator": "qdms"
+}
+```
+
+返回示例：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "requestId": "sslvpn-query-0001",
+    "deviceId": "qdms-device-0001",
+    "code": 10000,
+    "operation": "get_base_nego",
+    "mode": "SYNC",
+    "status": "SUCCESS",
+    "statusMessage": "success",
+    "downstream": {
+      "command": "ipc:rsp:ipsec_agent2web_agent:get_base_nego_info",
+      "src_channel": "ovpn:channel:ipsec_agent",
+      "dst_channel": "ovpn:channel:web_agent",
+      "session_id": 12345678,
+      "result": 0,
+      "message": "success",
+      "interface_name": "eth0",
+      "local_port": 500,
+      "local_port_nat": 4500,
+      "ike_ver": "IKEv2",
+      "auth_type": "1"
+    }
+  }
+}
+```
+
+### 9.6 查询策略列表
+
+请求：
+
+```json
+{
+  "requestId": "sslvpn-query-0002",
+  "deviceId": "qdms-device-0001",
+  "code": 10000,
+  "operation": "get_policy_list",
+  "payload": {
+    "page": 1,
+    "rows": 20
+  },
+  "operator": "qdms"
+}
+```
+
+说明：
+
+- 统一运维的列表查询同样使用固定路径 `POST /api/unified/command`。
+- 分页条件 `page`、`rows` 放在请求体的 `payload` 中，不放到 URL 查询参数里。
+
+返回示例：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "requestId": "sslvpn-query-0002",
+    "deviceId": "qdms-device-0001",
+    "code": 10000,
+    "operation": "get_policy_list",
+    "mode": "SYNC",
+    "status": "SUCCESS",
+    "statusMessage": "success",
+    "downstream": {
+      "command": "ipc:rsp:ipsec_agent2web_agent:get_policy_list",
+      "src_channel": "ovpn:channel:ipsec_agent",
+      "dst_channel": "ovpn:channel:web_agent",
+      "session_id": 22334455,
+      "result": 0,
+      "message": "success",
+      "all_policy_count": 1,
+      "policy_count": 1,
+      "policy_0": {
+        "id": "policy-0001",
+        "name": "policy-001",
+        "status": "enable",
+        "tu_name": "tun-0001",
+        "src_addr": "172.15.0.0/16",
+        "dst_addr": "172.16.0.0/16",
+        "type": "static",
+        "action": "ipsec",
+        "protocol": "any"
+      }
+    }
+  }
+}
+```
+
+### 9.7 查询或生成设备 CSR
 
 路径：
 
@@ -547,7 +680,7 @@ GET /api/device-certificates/csr
 }
 ```
 
-### 9.6 自建 CA 签发并下发
+### 9.8 自建 CA 签发并下发
 
 请求：
 
@@ -568,16 +701,49 @@ POST /api/device-certificates/issue/self-ca
 Content-Type: application/json
 ```
 
-返回中的关键字段说明：
+返回示例：
 
-- `flow=self_ca`：表示本次走自建 CA 编排流程。
-- `csr`：设备 CSR 读取 / 生成结果。
-- `caIssue`：调用自建 CA 服务签发得到的证书结果。
-- `caChain`：从自建 CA 服务获取的 CA 证书链。
-- `install`：向设备下发 CA 链和设备证书的执行结果。
-- `verification`：安装完成后的状态回读与证书校验结果。
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "device": {
+      "deviceId": "qdms-device-0001",
+      "deviceName": "QVPN-GW-0001",
+      "deviceIp": "192.168.1.151",
+      "devicePort": "161",
+      "manufacturer": "QASKY",
+      "deviceType": "QVPN",
+      "deviceModel": "QV-2000"
+    },
+    "deviceCertificate": {
+      "certPem": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n",
+      "certPemBase64": "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCg...",
+      "fingerprint": "55:D2:B3:02:9E:5B:01:4A:...",
+      "subject": "CN=0002",
+      "issuer": "C=CN,O=Qasky,CN=Qasky CA Root",
+      "notBefore": "Apr 16 08:27:47 2026 GMT",
+      "notAfter": "Apr 13 08:27:47 2036 GMT"
+    },
+    "caSerialNumber": "28486348754771"
+  }
+}
+```
 
-### 9.7 安装第三方证书
+返回字段说明：
+
+- `device`：当前目标设备的基础信息，仅保留对前端展示和定位有用的字段。
+- `deviceCertificate`：安装完成后最终返回给设备并回读确认的设备证书信息。
+- `caSerialNumber`：CA 平台中这张证书的序列号，采用十进制字符串表示；该值可直接用于 CA 平台侧的按序列号查询。
+
+说明：
+
+- 接口内部仍然会执行“读取 CSR、CA 签发、获取 CA 链、下发、回读校验”整套流程。
+- 旧的详细编排结果仍保留在服务内部逻辑中，但不再作为 HTTP 成功响应直接返回。
+- `caSerialNumber` 取的是 CA 平台使用口径的序列号；如果设备侧展示的是十六进制序列号，两边表现形式可能不同，但对应的是同一张证书。
+
+### 9.9 安装第三方证书
 
 请求：
 
@@ -611,6 +777,7 @@ Content-Type: application/json
 - 平台首次下发设备到节点时，先调用 `/api/device/sync`。
 - 平台只需要维护自己的 `deviceId` 与设备地址信息；`QDNS` 不要求 `deviceId` 与模拟器 `device_id` 相同。
 - 常规设备运维统一走 `/api/unified/command`。
+- SSL VPN 配置类的“写”和“查”都统一走 `/api/unified/command`；查询条件也写在请求体 `payload` 中，不使用额外的 GET 查询参数。
 - 证书原子能力如读取 CSR、下发 CA 链、下发设备证书，可走 `/api/unified/command` 的 `10009` ~ `10014`。
 - 如需“自建 CA 签发并下发”或“第三方证书安装”这类流程型证书能力，建议直接调用 `/api/device-certificates/*`。
 - 对于 `ASYNC` 操作，必须继续调用 `/api/unified/task` 并通过查询参数传 `taskId` 轮询状态，不要只看受理返回。

@@ -794,9 +794,9 @@
     <!-- SSL VPN Debug -->
     <div class="panel" id="panel-sslVpnDebug">
         <div class="alert alert-info">
-            这里单独调试 <code>QDNS -> /api/unified/command</code> 已开放的 SSL VPN 配置类能力，当前覆盖 <code>10000-10004</code>。
+            这里单独调试 <code>QDNS -> /api/unified/command</code> 已开放的 SSL VPN 配置类能力，当前覆盖 <code>10000-10004</code> 的写接口与查询接口。
             <code>deviceId</code> 仍然表示 QDMS 平台设备 ID，QDNS 会根据 Redis / 节点缓存中的 <code>deviceIp + devicePort</code> 去定位 VPN-Sim 设备。
-            VPN-Sim 协议文档里的 <code>get_*</code> 查询类 IPC 虽然在模拟器侧已实现，但目前没有在 QDNS 北向统一运维注册，所以本页只生成已开放的配置下发命令。
+            查询类能力也继续使用 <code>POST /api/unified/command</code>，分页、名称等查询条件统一放在 <code>payload</code> 中；证书原子能力仍建议使用独立的 <code>证书管理</code> 页签调试。
         </div>
         <div class="qdms-layout">
             <div class="qdms-card">
@@ -858,7 +858,7 @@
                 <div class="form-group" style="margin-top:12px;">
                     <label>操作说明</label>
                     <div class="qdms-note" id="sslVpnDebugNote">
-                        当前页面聚焦 QDNS 已开放的 SSL VPN 配置写接口，不改后端协议，只补独立调试入口。
+                        当前页面已补齐 QDNS 已开放的 SSL VPN 配置写接口和查询接口，不改后端协议，只补独立调试入口。
                     </div>
                 </div>
 
@@ -1526,7 +1526,7 @@
     const SSL_VPN_DEBUG_DEFINITIONS = {
         '10000': {
             capabilityName: '专线配置',
-            note: '这一组是 IKE / IPsec 专线基础协商、匿名协商、策略和隧道配置。',
+            note: '这一组覆盖 IKE / IPsec 专线基础协商、策略和隧道的写入与查询；查询类也统一走 POST，请把查询条件放在 payload 中。',
             operations: [
                 {
                     operation: 'set_base_nego',
@@ -1543,6 +1543,14 @@
                     note: '设置 IKE 基础协商参数。适合验证 QDNS 是否能把 IKE 基础配置正确下发到 VPN-Sim。'
                 },
                 {
+                    operation: 'get_base_nego',
+                    label: '查询IKE基础协商',
+                    downstreamAction: 'ipc:req:web_agent2ipsec_agent:get_base_nego_info',
+                    requiredFields: [],
+                    payload: {},
+                    note: '查询当前 IKE 基础协商参数。该类查询同样通过统一运维 POST 请求下发。'
+                },
+                {
                     operation: 'set_anonymous_nego',
                     label: '设置IKE匿名协商',
                     downstreamAction: 'ipc:req:web_agent2ipsec_agent:set_anonymous_nego_info',
@@ -1557,6 +1565,14 @@
                         encap_mode: 'tunnel'
                     },
                     note: '设置 IKE 匿名协商参数，常用于快速验证协商算法、封装协议和封装模式。'
+                },
+                {
+                    operation: 'get_anonymous_nego',
+                    label: '查询IKE匿名协商',
+                    downstreamAction: 'ipc:req:web_agent2ipsec_agent:get_anonymous_nego_info',
+                    requiredFields: [],
+                    payload: {},
+                    note: '查询当前匿名协商配置，适合对照写入前后的算法与工作模式是否生效。'
                 },
                 {
                     operation: 'add_policy',
@@ -1592,15 +1608,46 @@
                     note: '修改现有 IPsec 策略。通常建议同时带上 id 和 name，方便定位目标策略。'
                 },
                 {
+                    operation: 'get_policy_list',
+                    label: '查询策略列表',
+                    downstreamAction: 'ipc:req:web_agent2ipsec_agent:get_policy_list',
+                    requiredFields: ['page', 'rows'],
+                    payload: {
+                        page: 1,
+                        rows: 20
+                    },
+                    note: '分页查询策略列表。分页参数仍放在 payload 中，不改为 URL 查询参数。'
+                },
+                {
+                    operation: 'get_policy_info',
+                    label: '查询策略详情',
+                    downstreamAction: 'ipc:req:web_agent2ipsec_agent:get_policy_info',
+                    requiredFields: ['name'],
+                    payload: {
+                        name: 'policy-001'
+                    },
+                    note: '按策略名称查询单条策略详情。'
+                },
+                {
+                    operation: 'get_policy_state_list',
+                    label: '查询策略状态',
+                    downstreamAction: 'ipc:req:web_agent2ipsec_agent:get_policy_state_list',
+                    requiredFields: [],
+                    payload: {
+                        name: 'policy-001'
+                    },
+                    note: '查询策略状态列表；name 为可选过滤条件，留空时返回全部策略状态。'
+                },
+                {
                     operation: 'add_tunnel',
                     label: '新增隧道',
                     downstreamAction: 'ipc:req:web_agent2ipsec_agent:add_tun_info',
                     requiredFields: ['name', 'local_addr_type', 'local_addr', 'remote_addr_type', 'remote_addr', 'ph1_algs', 'ph2_algs', 'encap_mode', 'ph1_ttl', 'ph2_ttl', 'encap_protocol', 'dpd_state', 'dpd_interval'],
                     payload: {
                         name: 'tun-001',
-                        local_addr_type: 'ip',
+                        local_addr_type: 'static_ipv4',
                         local_addr: '192.168.10.1',
-                        remote_addr_type: 'ip',
+                        remote_addr_type: 'static_ipv4',
                         remote_addr: '192.168.20.1',
                         ph1_algs: 'SM4+SM2+SM3',
                         ph2_algs: 'SM4+SM2+SM3',
@@ -1608,7 +1655,7 @@
                         ph1_ttl: 28800,
                         ph2_ttl: 3600,
                         encap_protocol: 'ESP',
-                        dpd_state: 'enable',
+                        dpd_state: 1,
                         dpd_interval: 30
                     },
                     note: '新增 IPsec 隧道。这里的字段按 QDNS 已注册的统一运维必填项构造。'
@@ -1621,9 +1668,9 @@
                     payload: {
                         name: 'tun-001',
                         id: 'tun-0001',
-                        local_addr_type: 'ip',
+                        local_addr_type: 'static_ipv4',
                         local_addr: '192.168.10.1',
-                        remote_addr_type: 'ip',
+                        remote_addr_type: 'static_ipv4',
                         remote_addr: '192.168.20.1',
                         ph1_algs: 'SM4+SM2+SM3',
                         ph2_algs: 'SM4+SM2+SM3',
@@ -1631,16 +1678,37 @@
                         ph1_ttl: 28800,
                         ph2_ttl: 3600,
                         encap_protocol: 'ESP',
-                        dpd_state: 'enable',
+                        dpd_state: 1,
                         dpd_interval: 30
                     },
                     note: '修改现有 IPsec 隧道。若想调验证书类能力，建议继续使用现有“证书管理”页签。'
+                },
+                {
+                    operation: 'get_tunnel_list',
+                    label: '查询隧道列表',
+                    downstreamAction: 'ipc:req:web_agent2ipsec_agent:get_tun_list',
+                    requiredFields: ['page', 'rows'],
+                    payload: {
+                        page: 1,
+                        rows: 20
+                    },
+                    note: '分页查询隧道列表。QDNS 侧 operation 统一命名为 get_tunnel_list，下游会映射到 VPN-Sim 的 get_tun_list。'
+                },
+                {
+                    operation: 'get_tunnel_info',
+                    label: '查询隧道详情',
+                    downstreamAction: 'ipc:req:web_agent2ipsec_agent:get_tun_info',
+                    requiredFields: ['name'],
+                    payload: {
+                        name: 'tun-001'
+                    },
+                    note: '按隧道名称查询详情。QDNS 侧 operation 统一命名为 get_tunnel_info，下游会映射到 VPN-Sim 的 get_tun_info。'
                 }
             ]
         },
         '10001': {
             capabilityName: 'ACL配置',
-            note: '这一组用于 ACL 新增和删除。',
+            note: '这一组用于 ACL 新增、删除和列表查询。',
             operations: [
                 {
                     operation: 'add',
@@ -1653,7 +1721,7 @@
                         protocol: 'tcp',
                         src_addr: '192.168.1.0/24',
                         dst_addr: '172.16.0.0/16',
-                        time_limit_state: 'disable',
+                        time_limit_state: 1,
                         begin_time: '00:00',
                         end_time: '23:59'
                     },
@@ -1668,12 +1736,23 @@
                         id: 'acl-0001'
                     },
                     note: '按 ACL 规则 ID 删除。'
+                },
+                {
+                    operation: 'get_acl_list',
+                    label: '查询ACL列表',
+                    downstreamAction: 'ipc:req:web_agent2net_agent:get_acl_list',
+                    requiredFields: ['page', 'rows'],
+                    payload: {
+                        page: 1,
+                        rows: 20
+                    },
+                    note: '分页查询 ACL 列表。分页参数统一放在 payload 中。'
                 }
             ]
         },
         '10002': {
             capabilityName: '路由配置',
-            note: '这一组用于静态路由新增和删除。',
+            note: '这一组用于静态路由新增、删除和列表查询。',
             operations: [
                 {
                     operation: 'add',
@@ -1702,12 +1781,23 @@
                         interface_name: 'eth1'
                     },
                     note: '按目标网段、掩码、下一跳和接口组合删除静态路由。'
+                },
+                {
+                    operation: 'get_route_list',
+                    label: '查询路由列表',
+                    downstreamAction: 'ipc:req:web_agent2net_agent:get_route_list',
+                    requiredFields: ['page', 'rows'],
+                    payload: {
+                        page: 1,
+                        rows: 20
+                    },
+                    note: '分页查询静态路由列表。'
                 }
             ]
         },
         '10003': {
             capabilityName: '白名单配置',
-            note: '这一组用于白名单新增、删除和状态切换。',
+            note: '这一组用于白名单新增、删除、状态切换和查询。',
             operations: [
                 {
                     operation: 'add',
@@ -1716,9 +1806,9 @@
                     requiredFields: ['name', 'type', 'addr', 'state'],
                     payload: {
                         name: 'whitelist-001',
-                        type: 'ip',
+                        type: 0,
                         addr: '10.10.10.10',
-                        state: 'enable'
+                        state: 0
                     },
                     note: '新增白名单条目。'
                 },
@@ -1728,7 +1818,7 @@
                     downstreamAction: 'ipc:req:web_agent2net_agent:del_whitelists',
                     requiredFields: ['id'],
                     payload: {
-                        id: 'whitelist-0001'
+                        id: 'white-0001'
                     },
                     note: '按白名单条目 ID 删除。'
                 },
@@ -1738,16 +1828,35 @@
                     downstreamAction: 'ipc:req:web_agent2net_agent:change_whitelists',
                     requiredFields: ['id', 'state'],
                     payload: {
-                        id: 'whitelist-0001',
-                        state: 'disable'
+                        id: 'white-0001',
+                        state: 1
                     },
                     note: '切换白名单条目的启停状态。'
+                },
+                {
+                    operation: 'get_whitelist_state',
+                    label: '查询白名单总状态',
+                    downstreamAction: 'ipc:req:web_agent2net_agent:get_whitelists_state',
+                    requiredFields: [],
+                    payload: {},
+                    note: '查询白名单总开关状态，无需额外查询条件。'
+                },
+                {
+                    operation: 'get_whitelist_list',
+                    label: '查询白名单列表',
+                    downstreamAction: 'ipc:req:web_agent2net_agent:get_whitelists',
+                    requiredFields: ['page', 'rows'],
+                    payload: {
+                        page: 1,
+                        rows: 20
+                    },
+                    note: '分页查询白名单条目列表。'
                 }
             ]
         },
         '10004': {
             capabilityName: 'NAT配置',
-            note: '这一组用于 SNAT / DNAT 的新增和删除。',
+            note: '这一组用于 SNAT / DNAT 的新增、删除和列表查询。',
             operations: [
                 {
                     operation: 'add_snat',
@@ -1770,6 +1879,17 @@
                         id: 'snat-0001'
                     },
                     note: '按 SNAT 规则 ID 删除。'
+                },
+                {
+                    operation: 'get_snat_list',
+                    label: '查询SNAT列表',
+                    downstreamAction: 'ipc:req:web_agent2net_agent:get_snat_list',
+                    requiredFields: ['page', 'rows'],
+                    payload: {
+                        page: 1,
+                        rows: 20
+                    },
+                    note: '分页查询 SNAT 列表。'
                 },
                 {
                     operation: 'add_dnat',
@@ -1795,6 +1915,17 @@
                         id: 'dnat-0001'
                     },
                     note: '按 DNAT 规则 ID 删除。'
+                },
+                {
+                    operation: 'get_dnat_list',
+                    label: '查询DNAT列表',
+                    downstreamAction: 'ipc:req:web_agent2net_agent:get_dnat_list',
+                    requiredFields: ['page', 'rows'],
+                    payload: {
+                        page: 1,
+                        rows: 20
+                    },
+                    note: '分页查询 DNAT 列表。'
                 }
             ]
         }
@@ -2990,10 +3121,10 @@
 
         if (s.interfaces && s.interfaces.length > 0) {
             html += `<div class="detail-section"><h3>网络接口 (${s.interfaces.length})</h3>`;
-            html += '<table><tr><th>名称</th><th>速率</th><th>状态</th><th>入流量</th><th>出流量</th></tr>';
+            html += '<table><tr><th>名称</th><th>MAC</th><th>IP</th><th>速率</th><th>状态</th><th>入流量</th><th>出流量</th></tr>';
             for (const i of s.interfaces) {
                 const os = i.operStatus === 1 ? '<span class="status-badge status-online">UP</span>' : '<span class="status-badge status-offline">DOWN</span>';
-                html += `<tr><td>${i.name || 'if-' + i.index}</td><td>${formatSpeed(i.highSpeed || i.speed)}</td><td>${os}</td><td>${formatBytes(i.hcInOctets || i.inOctets)}</td><td>${formatBytes(i.hcOutOctets || i.outOctets)}</td></tr>`;
+                html += `<tr><td>${i.name || 'if-' + i.index}</td><td>${i.macAddress || '-'}</td><td>${i.ipAddress || '-'}</td><td>${formatSpeed(i.highSpeed || i.speed)}</td><td>${os}</td><td>${formatBytes(i.hcInOctets || i.inOctets)}</td><td>${formatBytes(i.hcOutOctets || i.outOctets)}</td></tr>`;
             }
             html += '</table></div>';
         }
@@ -3119,11 +3250,11 @@
         return deviceId;
     }
 
-    function buildCertificateCommonPayload() {
-        const payload = {
-            algorithm: document.getElementById('certAlgorithm').value,
-            forceRegenerate: document.getElementById('certForceRegenerate').value === 'true'
-        };
+    function buildCertificateCommonPayload(deviceId) {
+        const payload = {};
+        if (deviceId) payload.deviceId = deviceId;
+        payload.algorithm = document.getElementById('certAlgorithm').value;
+        payload.forceRegenerate = document.getElementById('certForceRegenerate').value === 'true';
         const commonName = document.getElementById('certCommonName').value.trim();
         if (commonName) payload.commonName = commonName;
         return payload;
@@ -3162,29 +3293,29 @@
     async function certificateQueryStatus() {
         const deviceId = getCertificateDeviceId();
         if (!deviceId) return;
-        const res = await apiCall(`/api/device-certificates/${encodeURIComponent(deviceId)}`);
+        const res = await apiCall(`/api/device-certificates/status${buildCertificateQueryString({ deviceId })}`);
         renderCertificateResponse('查询证书状态', res, res.data);
     }
 
     async function certificateReadDeviceCert() {
         const deviceId = getCertificateDeviceId();
         if (!deviceId) return;
-        const res = await apiCall(`/api/device-certificates/${encodeURIComponent(deviceId)}/device-cert`);
+        const res = await apiCall(`/api/device-certificates/device-cert${buildCertificateQueryString({ deviceId })}`);
         renderCertificateResponse('读取设备证书', res, res.data && res.data.deviceCertificate ? res.data.deviceCertificate : res.data);
     }
 
     async function certificateReadCaChain() {
         const deviceId = getCertificateDeviceId();
         if (!deviceId) return;
-        const res = await apiCall(`/api/device-certificates/${encodeURIComponent(deviceId)}/ca-chain`);
+        const res = await apiCall(`/api/device-certificates/ca-chain${buildCertificateQueryString({ deviceId })}`);
         renderCertificateResponse('读取CA证书链', res, res.data && res.data.caChain ? res.data.caChain : res.data);
     }
 
     async function certificateReadCsr() {
         const deviceId = getCertificateDeviceId();
         if (!deviceId) return;
-        const query = buildCertificateQueryString(buildCertificateCommonPayload());
-        const res = await apiCall(`/api/device-certificates/${encodeURIComponent(deviceId)}/csr${query}`);
+        const query = buildCertificateQueryString(buildCertificateCommonPayload(deviceId));
+        const res = await apiCall(`/api/device-certificates/csr${query}`);
         renderCertificateResponse('读取/生成设备CSR', res, res.data && res.data.csr ? res.data.csr : res.data);
     }
 
@@ -3192,9 +3323,9 @@
         const deviceId = getCertificateDeviceId();
         if (!deviceId) return;
         const res = await apiCall(
-            `/api/device-certificates/${encodeURIComponent(deviceId)}/issue/self-ca`,
+            '/api/device-certificates/issue/self-ca',
             'POST',
-            buildCertificateCommonPayload()
+            buildCertificateCommonPayload(deviceId)
         );
         renderCertificateResponse('自建CA签发并下发', res, res.data);
     }
@@ -3212,11 +3343,11 @@
             alert('请粘贴CA证书链');
             return;
         }
-        const body = buildCertificateCommonPayload();
+        const body = buildCertificateCommonPayload(deviceId);
         body.deviceCertPemBase64 = deviceCert;
         body.caChainPemBase64List = caChain;
         const res = await apiCall(
-            `/api/device-certificates/${encodeURIComponent(deviceId)}/install/third-party`,
+            '/api/device-certificates/install/third-party',
             'POST',
             body
         );

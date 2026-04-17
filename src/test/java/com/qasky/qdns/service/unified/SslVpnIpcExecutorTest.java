@@ -129,6 +129,48 @@ class SslVpnIpcExecutorTest {
         server.verify();
     }
 
+    @Test
+    void shouldRouteListQueryCommandsToNetChannel() {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        SslVpnIpcExecutor executor = new SslVpnIpcExecutor(restTemplate, 8443, "ip");
+        OperationCodeRegistry registry = new OperationCodeRegistry();
+
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceIp("192.168.1.151");
+
+        UnifiedCommandRequest request = new UnifiedCommandRequest();
+        request.setRequestId("req-acl-list");
+        request.setDeviceId("dev-1");
+        request.setCode(10001);
+        request.setOperation("get_acl_list");
+        request.setPayload(listPayload());
+
+        int sessionId = Math.abs("req-acl-list".hashCode());
+        String expectedBody = "{"
+                + "\"command\":\"ipc:req:web_agent2net_agent:get_acl_list\","
+                + "\"src_channel\":\"ovpn:channel:web_agent\","
+                + "\"dst_channel\":\"ovpn:channel:net_agent\","
+                + "\"session_id\":" + sessionId + ","
+                + "\"page\":1,"
+                + "\"rows\":20"
+                + "}";
+
+        server.expect(requestTo("http://192.168.1.151:8443/api/ipc"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().json(expectedBody, false))
+                .andRespond(withSuccess("{\"result\":0,\"message\":\"success\",\"acl_count\":0}", MediaType.APPLICATION_JSON));
+
+        UnifiedCommandExecutor.ExecutionResult result = executor.execute(
+                device,
+                request,
+                registry.getDefinition(10001, "get_acl_list")
+        );
+
+        assertTrue(result.isSuccess());
+        server.verify();
+    }
+
     private static Map<String, Object> requiredAclPayload() {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("name", "acl-1");
@@ -139,6 +181,13 @@ class SslVpnIpcExecutorTest {
         payload.put("time_limit_state", 0);
         payload.put("begin_time", "08:00");
         payload.put("end_time", "18:00");
+        return payload;
+    }
+
+    private static Map<String, Object> listPayload() {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("page", 1);
+        payload.put("rows", 20);
         return payload;
     }
 }

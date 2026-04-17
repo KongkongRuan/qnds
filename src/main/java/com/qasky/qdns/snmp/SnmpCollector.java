@@ -286,11 +286,14 @@ public class SnmpCollector {
         List<SnmpResult> ifResults = snmpClient.walk(host, port, "1.3.6.1.2.1.2.2.1", protocol, device);
         // Walk ifXTable
         List<SnmpResult> ifxResults = snmpClient.walk(host, port, "1.3.6.1.2.1.31.1.1.1", protocol, device);
+        // Walk ipAddrTable
+        List<SnmpResult> ipAddrResults = snmpClient.walk(host, port, "1.3.6.1.2.1.4.20.1", protocol, device);
 
         Map<Integer, DeviceStatus.InterfaceStatus> ifMap = new TreeMap<>();
 
         parseIfTableResults(ifResults, ifMap, "1.3.6.1.2.1.2.2.1.");
         parseIfxTableResults(ifxResults, ifMap, "1.3.6.1.2.1.31.1.1.1.");
+        parseIpAddrTableResults(ipAddrResults, ifMap, "1.3.6.1.2.1.4.20.1.");
 
         status.setInterfaces(new ArrayList<>(ifMap.values()));
     }
@@ -320,12 +323,42 @@ public class SnmpCollector {
                 case 2: iface.setName(r.getValue()); break;
                 case 3: iface.setIfType(parseInt(r.getValue())); break;
                 case 5: iface.setSpeed(parseLong(r.getValue())); break;
+                case 6: iface.setMacAddress(r.getValue()); break;
                 case 7: iface.setAdminStatus(parseInt(r.getValue())); break;
                 case 8: iface.setOperStatus(parseInt(r.getValue())); break;
                 case 10: iface.setInOctets(parseLong(r.getValue())); break;
                 case 16: iface.setOutOctets(parseLong(r.getValue())); break;
                 default: break;
             }
+        }
+    }
+
+    private void parseIpAddrTableResults(List<SnmpResult> results,
+                                         Map<Integer, DeviceStatus.InterfaceStatus> ifMap,
+                                         String prefix) {
+        for (SnmpResult r : results) {
+            if (!r.isSuccess()) continue;
+            String oid = r.getOid();
+            if (!oid.startsWith(prefix)) continue;
+            String suffix = oid.substring(prefix.length());
+            String[] parts = suffix.split("\\.");
+            if (parts.length < 5) continue;
+
+            int col = parseInt(parts[0]);
+            String ip = parts[1] + "." + parts[2] + "." + parts[3] + "." + parts[4];
+            if (col != 2) {
+                continue;
+            }
+
+            int ifIndex = parseInt(r.getValue());
+            if (ifIndex <= 0) continue;
+
+            DeviceStatus.InterfaceStatus iface = ifMap.computeIfAbsent(ifIndex, k -> {
+                DeviceStatus.InterfaceStatus s = new DeviceStatus.InterfaceStatus();
+                s.setIndex(k);
+                return s;
+            });
+            iface.setIpAddress(ip);
         }
     }
 

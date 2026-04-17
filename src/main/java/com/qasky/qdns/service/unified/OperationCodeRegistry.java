@@ -17,15 +17,30 @@ public class OperationCodeRegistry {
         register(new OperationDefinition(10000, "专线配置", "set_base_nego", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2ipsec_agent:set_base_nego_info",
                 required("interface_name", "local_port", "local_port_nat", "ike_ver", "auth_type")));
+        register(new OperationDefinition(10000, "专线配置", "get_base_nego", "ssl-vpn-ipc",
+                "SYNC", "ipc:req:web_agent2ipsec_agent:get_base_nego_info",
+                required()));
         register(new OperationDefinition(10000, "专线配置", "set_anonymous_nego", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2ipsec_agent:set_anonymous_nego_info",
                 required("status", "ph1_algs", "ph2_algs", "ph1_ttl_range", "ph2_ttl_range", "encap_protocol", "encap_mode")));
+        register(new OperationDefinition(10000, "专线配置", "get_anonymous_nego", "ssl-vpn-ipc",
+                "SYNC", "ipc:req:web_agent2ipsec_agent:get_anonymous_nego_info",
+                required()));
         register(new OperationDefinition(10000, "专线配置", "add_policy", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2ipsec_agent:add_policy_info",
                 required("name", "status", "tu_name", "src_addr", "dst_addr", "action", "protocol")));
         register(new OperationDefinition(10000, "专线配置", "update_policy", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2ipsec_agent:change_policy_info",
                 required("name", "id", "status", "tu_name", "src_addr", "dst_addr", "action", "protocol")));
+        register(new OperationDefinition(10000, "专线配置", "get_policy_list", "ssl-vpn-ipc",
+                "SYNC", "ipc:req:web_agent2ipsec_agent:get_policy_list",
+                required("page", "rows")));
+        register(new OperationDefinition(10000, "专线配置", "get_policy_info", "ssl-vpn-ipc",
+                "SYNC", "ipc:req:web_agent2ipsec_agent:get_policy_info",
+                required("name")));
+        register(new OperationDefinition(10000, "专线配置", "get_policy_state_list", "ssl-vpn-ipc",
+                "SYNC", "ipc:req:web_agent2ipsec_agent:get_policy_state_list",
+                required()));
         register(new OperationDefinition(10000, "专线配置", "add_tunnel", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2ipsec_agent:add_tun_info",
                 required("name", "local_addr_type", "local_addr", "remote_addr_type", "remote_addr",
@@ -34,6 +49,12 @@ public class OperationCodeRegistry {
                 "SYNC", "ipc:req:web_agent2ipsec_agent:change_tun_info",
                 required("name", "id", "local_addr_type", "local_addr", "remote_addr_type", "remote_addr",
                         "ph1_algs", "ph2_algs", "encap_mode", "ph1_ttl", "ph2_ttl", "encap_protocol", "dpd_state", "dpd_interval")));
+        register(new OperationDefinition(10000, "专线配置", "get_tunnel_list", "ssl-vpn-ipc",
+                "SYNC", "ipc:req:web_agent2ipsec_agent:get_tun_list",
+                required("page", "rows")));
+        register(new OperationDefinition(10000, "专线配置", "get_tunnel_info", "ssl-vpn-ipc",
+                "SYNC", "ipc:req:web_agent2ipsec_agent:get_tun_info",
+                required("name")));
 
         register(new OperationDefinition(10001, "ACL配置", "add", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2net_agent:add_acl",
@@ -41,6 +62,9 @@ public class OperationCodeRegistry {
         register(new OperationDefinition(10001, "ACL配置", "delete", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2net_agent:del_acl",
                 required("id")));
+        register(new OperationDefinition(10001, "ACL配置", "get_acl_list", "ssl-vpn-ipc",
+                "SYNC", "ipc:req:web_agent2net_agent:get_acl_list",
+                required("page", "rows")));
 
         register(new OperationDefinition(10002, "路由配置", "add", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2net_agent:add_route_info",
@@ -48,6 +72,9 @@ public class OperationCodeRegistry {
         register(new OperationDefinition(10002, "路由配置", "delete", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2net_agent:del_route_info",
                 required("dst_addr", "mask", "next_ip", "interface_name")));
+        register(new OperationDefinition(10002, "路由配置", "get_route_list", "ssl-vpn-ipc",
+                "SYNC", "ipc:req:web_agent2net_agent:get_route_list",
+                required("page", "rows")));
 
         register(new OperationDefinition(10003, "白名单配置", "add", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2net_agent:add_whitelists",
@@ -58,6 +85,12 @@ public class OperationCodeRegistry {
         register(new OperationDefinition(10003, "白名单配置", "update_state", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2net_agent:change_whitelists",
                 required("id", "state")));
+        register(new OperationDefinition(10003, "白名单配置", "get_whitelist_state", "ssl-vpn-ipc",
+                "SYNC", "ipc:req:web_agent2net_agent:get_whitelists_state",
+                required()));
+        register(new OperationDefinition(10003, "白名单配置", "get_whitelist_list", "ssl-vpn-ipc",
+                "SYNC", "ipc:req:web_agent2net_agent:get_whitelists",
+                required("page", "rows")));
 
         register(new OperationDefinition(10004, "NAT配置", "add_snat", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2net_agent:add_snat",
@@ -65,12 +98,18 @@ public class OperationCodeRegistry {
         register(new OperationDefinition(10004, "NAT配置", "delete_snat", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2net_agent:del_snat",
                 required("id")));
+        register(new OperationDefinition(10004, "NAT配置", "get_snat_list", "ssl-vpn-ipc",
+                "SYNC", "ipc:req:web_agent2net_agent:get_snat_list",
+                required("page", "rows")));
         register(new OperationDefinition(10004, "NAT配置", "add_dnat", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2net_agent:add_dnat",
                 required("name", "protocol", "local_addr", "local_port", "external_addr", "external_port")));
         register(new OperationDefinition(10004, "NAT配置", "delete_dnat", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2net_agent:del_dnat",
                 required("id")));
+        register(new OperationDefinition(10004, "NAT配置", "get_dnat_list", "ssl-vpn-ipc",
+                "SYNC", "ipc:req:web_agent2net_agent:get_dnat_list",
+                required("page", "rows")));
 
         register(new OperationDefinition(10005, "备份", "backup", "vpn-sim-http",
                 "SYNC", "backup", required()));

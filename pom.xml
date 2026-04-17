@@ -27,6 +27,7 @@
         <spring-cloud-alibaba.version>2021.0.5.0</spring-cloud-alibaba.version>
         <snmp4j.version>3.8.2</snmp4j.version>
         <lombok.version>1.18.32</lombok.version>
+        <bouncycastle.version>1.82</bouncycastle.version>
     </properties>
 
     <dependencyManagement>
@@ -77,6 +78,20 @@
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-bootstrap</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.bouncycastle</groupId>
+                    <artifactId>bcpkix-jdk15on</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.bouncycastle</groupId>
+                    <artifactId>bcprov-jdk15on</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.bouncycastle</groupId>
+                    <artifactId>bcutil-jdk15on</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- SNMP4J -->
@@ -118,11 +133,6 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.bouncycastle</groupId>
-            <artifactId>bcprov-jdk15to18</artifactId>
-            <version>1.77</version>
-        </dependency>
-        <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-all</artifactId>
             <version>5.8.19</version>
@@ -132,6 +142,22 @@
             <groupId>com.hierynomus</groupId>
             <artifactId>sshj</artifactId>
             <version>0.38.0</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.kongkongruan</groupId>
+            <artifactId>gm-java</artifactId>
+            <version>3.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>${bouncycastle.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk18on</artifactId>
+            <version>${bouncycastle.version}</version>
         </dependency>
     </dependencies>
 

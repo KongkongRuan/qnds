@@ -71,13 +71,13 @@
 | `vpnFirmwareVersion` | `V3.2.7-build20260413` | `String` | 固件版本。 |
 | `vpnSerialNumber` | `QASKY-QV-2000-0002` | `String` | 设备序列号。 |
 | `vpnDeviceStatus` | `1` | `int` | 设备总体运行状态编码。 |
-| `vpnMacAddress` | `4A:34:F7:BD:80:02` | `String` | 设备 MAC 地址。 |
+| `vpnMacAddress` | `4A:34:F7:BD:80:02` | `String` | 设备级 MAC 地址。当前模拟器中该字段固定等于主接口的 `macAddress`。 |
 | `vpnDeviceModel` | `QV-2000` | `String` | 设备型号。 |
 | `vpnVendor` | `QASKY` | `String` | 设备厂商。 |
 | `tunnelCount` | `4` | `int` | 隧道数量。通常表示当前可见的 VPN 隧道条目数。正常情况下应接近 `tunnels.length`。 |
 | `tunnels` | 见第 5 节 | `List<TunnelStatus>` | 隧道明细列表。每个元素包含隧道状态、累计流量、当前速率和时间窗吞吐量。 |
 | `ifNumber` | `3` | `int` | 网络接口数量，来源于标准 MIB `ifNumber`。 |
-| `interfaces` | 见第 4 节 | `List<InterfaceStatus>` | 网络接口明细列表，由 `ifTable` 和 `ifXTable` 拼装而成。 |
+| `interfaces` | 见第 4 节 | `List<InterfaceStatus>` | 网络接口明细列表，由 `ifTable`、`ifXTable` 和 `ipAddrTable` 拼装而成。 |
 | `wirelessStatus` | `1` | `int` | 无线模块状态编码。当前样例中为 `1`，表示无线相关数据有效；精确枚举值以设备 MIB 为准。 |
 | `wirelessInOctets` | `725872698515` | `long` | 无线接口入方向累计字节数。 |
 | `wirelessOutOctets` | `735425943304` | `long` | 无线接口出方向累计字节数。 |
@@ -104,6 +104,7 @@
 ## 4. interfaces 字段说明
 
 `interfaces` 是接口状态列表，每个元素对应一块网络接口，通常由 `ifTable` 和 `ifXTable` 数据组合而成。
+当前版本还会结合 `ipAddrTable` 补齐接口级 IPv4 地址。
 
 ### 4.1 单个接口对象字段
 
@@ -111,6 +112,8 @@
 | --- | --- | --- | --- |
 | `index` | `1` | `int` | 接口索引，对应 MIB 中的 `ifIndex`。 |
 | `name` | `eth0` | `String` | 接口名称。通常优先使用 `ifName`，如果设备没有该字段，也可能回退为 `ifDescr`。 |
+| `macAddress` | `4A:34:F7:BD:80:02` | `String` | 接口 MAC 地址，来自标准 MIB 的 `ifPhysAddress`。 |
+| `ipAddress` | `192.168.1.152` | `String` | 接口 IPv4 地址，来自标准 `ipAddrTable` 与 `ifIndex` 的映射结果。当前模拟器约束为仅一张主接口有值。 |
 | `ifType` | `6` | `int` | 接口类型编码。`6` 常表示以太网接口，`243` 这类值通常表示厂商定义或特殊接口类型。 |
 | `speed` | `1000000000` | `long` | 32 位接口速率字段，单位通常为 `bit/s`。 |
 | `adminStatus` | `1` | `int` | 管理状态编码。常见约定中 `1` 表示 up。 |
@@ -128,6 +131,12 @@
 | `eth0` | 千兆以太接口，管理与运行状态都为正常。 |
 | `eth1` | 第二块千兆以太接口，管理与运行状态都为正常。 |
 | `4g0` | 特殊类型接口，通常可理解为 4G/蜂窝链路接口；其累计流量与顶层无线流量字段具有关联性。 |
+
+补充说明：
+
+- 当前模拟器中每张网卡都有独立 `macAddress`。
+- 仅主接口持有 `ipAddress`，并且该值等于顶层 `deviceIp`。
+- 顶层 `vpnMacAddress` 不是额外的一块网卡，而是主接口 `macAddress` 的兼容映射。
 
 ## 5. tunnels 字段说明
 

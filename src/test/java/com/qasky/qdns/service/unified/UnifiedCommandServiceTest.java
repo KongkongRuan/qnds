@@ -57,6 +57,41 @@ class UnifiedCommandServiceTest {
     }
 
     @Test
+    void shouldRouteSslVpnQueryCommandWithoutPayloadFields() {
+        DeviceCollectorService deviceCollectorService = mock(DeviceCollectorService.class);
+        UnifiedCommandExecutor sslExecutor = mock(UnifiedCommandExecutor.class);
+        UnifiedTaskStore taskStore = new UnifiedTaskStore(null, "test:task:", 60);
+        OperationCodeRegistry registry = new OperationCodeRegistry();
+
+        DeviceInfo device = buildDevice("dev-1");
+        when(deviceCollectorService.getDeviceById("dev-1")).thenReturn(device);
+        when(sslExecutor.executorKey()).thenReturn("ssl-vpn-ipc");
+        when(sslExecutor.execute(any(DeviceInfo.class), any(UnifiedCommandRequest.class), any(OperationCodeRegistry.OperationDefinition.class)))
+                .thenReturn(UnifiedCommandExecutor.ExecutionResult.success("query ok", Collections.singletonMap("result", 0)));
+
+        UnifiedCommandService service = new UnifiedCommandService(
+                deviceCollectorService,
+                registry,
+                taskStore,
+                Collections.singletonList(sslExecutor),
+                directExecutor()
+        );
+
+        UnifiedCommandRequest request = new UnifiedCommandRequest();
+        request.setDeviceId("dev-1");
+        request.setCode(10000);
+        request.setOperation("get_base_nego");
+        request.setPayload(Collections.<String, Object>emptyMap());
+
+        UnifiedCommandResponseData response = service.executeCommand(request);
+
+        assertEquals("SYNC", response.getMode());
+        assertEquals("SUCCESS", response.getStatus());
+        assertEquals("query ok", response.getStatusMessage());
+        verify(sslExecutor).execute(eq(device), any(UnifiedCommandRequest.class), any(OperationCodeRegistry.OperationDefinition.class));
+    }
+
+    @Test
     void shouldRejectUnknownCode() {
         UnifiedCommandService service = new UnifiedCommandService(
                 mock(DeviceCollectorService.class),
@@ -93,6 +128,27 @@ class UnifiedCommandServiceTest {
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> service.executeCommand(request));
         assertTrue(exception.getMessage().contains("version"));
+    }
+
+    @Test
+    void shouldRejectMissingPagingFieldsForListQuery() {
+        UnifiedCommandService service = new UnifiedCommandService(
+                mock(DeviceCollectorService.class),
+                new OperationCodeRegistry(),
+                new UnifiedTaskStore(null, "test:task:", 60),
+                Collections.<UnifiedCommandExecutor>emptyList(),
+                directExecutor()
+        );
+
+        UnifiedCommandRequest request = new UnifiedCommandRequest();
+        request.setDeviceId("dev-1");
+        request.setCode(10004);
+        request.setOperation("get_snat_list");
+        request.setPayload(new LinkedHashMap<String, Object>());
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> service.executeCommand(request));
+        assertTrue(exception.getMessage().contains("page"));
+        assertTrue(exception.getMessage().contains("rows"));
     }
 
     @Test

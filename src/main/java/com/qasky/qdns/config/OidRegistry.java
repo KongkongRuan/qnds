@@ -26,6 +26,7 @@ public class OidRegistry {
     private List<OidDefinition> allScalarOids;
     private List<OidDefinition> ifTableColumns;
     private List<OidDefinition> ifxTableColumns;
+    private List<OidDefinition> ipAddrTableColumns;
     private List<OidDefinition> tunnelTableColumns;
     private List<OidDefinition> ikeSaTableColumns;
     private List<OidDefinition> ipsecSaTableColumns;
@@ -115,6 +116,7 @@ public class OidRegistry {
         ifTableColumns.add(new OidDefinition("1.3.6.1.2.1.2.2.1.2", "ifDescr", "OctetString", "接口描述", true, "interface", null, false));
         ifTableColumns.add(new OidDefinition("1.3.6.1.2.1.2.2.1.3", "ifType", "Integer32", "接口类型", true, "interface", null, false));
         ifTableColumns.add(new OidDefinition("1.3.6.1.2.1.2.2.1.5", "ifSpeed", "Gauge32", "接口速率", true, "interface", null, false));
+        ifTableColumns.add(new OidDefinition("1.3.6.1.2.1.2.2.1.6", "ifPhysAddress", "OctetString", "接口物理地址", true, "interface", null, false));
         ifTableColumns.add(new OidDefinition("1.3.6.1.2.1.2.2.1.7", "ifAdminStatus", "Integer32", "管理状态", true, "interface", null, false));
         ifTableColumns.add(new OidDefinition("1.3.6.1.2.1.2.2.1.8", "ifOperStatus", "Integer32", "操作状态", true, "interface", null, false));
         ifTableColumns.add(new OidDefinition("1.3.6.1.2.1.2.2.1.10", "ifInOctets", "Counter32", "入方向字节(32位)", true, "interface", null, false));
@@ -126,6 +128,12 @@ public class OidRegistry {
         ifxTableColumns.add(new OidDefinition("1.3.6.1.2.1.31.1.1.1.6", "ifHCInOctets", "Counter64", "入方向字节(64位)", true, "interface", null, false));
         ifxTableColumns.add(new OidDefinition("1.3.6.1.2.1.31.1.1.1.10", "ifHCOutOctets", "Counter64", "出方向字节(64位)", true, "interface", null, false));
         ifxTableColumns.add(new OidDefinition("1.3.6.1.2.1.31.1.1.1.15", "ifHighSpeed", "Gauge32", "接口高速速率(Mbps)", true, "interface", null, false));
+
+        // ipAddrTable columns: 1.3.6.1.2.1.4.20.1.{col}.{ip}
+        ipAddrTableColumns = new ArrayList<>();
+        ipAddrTableColumns.add(new OidDefinition("1.3.6.1.2.1.4.20.1.1", "ipAdEntAddr", "IpAddress", "接口IPv4地址", true, "ip_addr", null, false));
+        ipAddrTableColumns.add(new OidDefinition("1.3.6.1.2.1.4.20.1.2", "ipAdEntIfIndex", "Integer32", "接口IPv4所属接口索引", true, "ip_addr", null, false));
+        ipAddrTableColumns.add(new OidDefinition("1.3.6.1.2.1.4.20.1.3", "ipAdEntNetMask", "IpAddress", "接口IPv4子网掩码", true, "ip_addr", null, false));
 
         // Tunnel table columns: EP.2.1.1.{col}.{idx}
         Set<String> qvTp = new HashSet<>(Arrays.asList("quantum_vpn", "third_party_vpn"));
@@ -232,6 +240,13 @@ public class OidRegistry {
     }
 
     /**
+     * 获取ipAddrTable列定义
+     */
+    public List<OidDefinition> getIpAddrTableColumns() {
+        return Collections.unmodifiableList(ipAddrTableColumns);
+    }
+
+    /**
      * 获取隧道表列定义
      */
     public List<OidDefinition> getTunnelTableColumns() {
@@ -257,6 +272,7 @@ public class OidRegistry {
         result.addAll(getScalarOids(deviceType));
         result.addAll(ifTableColumns);
         result.addAll(ifxTableColumns);
+        result.addAll(ipAddrTableColumns);
         if ("quantum_vpn".equals(deviceType) || "third_party_vpn".equals(deviceType)) {
             result.addAll(tunnelTableColumns);
             result.addAll(ikeSaTableColumns);

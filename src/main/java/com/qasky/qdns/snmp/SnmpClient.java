@@ -14,8 +14,8 @@ import org.snmp4j.security.*;
 import org.snmp4j.smi.*;
 import org.snmp4j.transport.DefaultUdpTransportMapping;
 import org.snmp4j.util.DefaultPDUFactory;
-import org.snmp4j.util.TableEvent;
-import org.snmp4j.util.TableUtils;
+import org.snmp4j.util.TreeEvent;
+import org.snmp4j.util.TreeUtils;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
@@ -167,7 +167,7 @@ public class SnmpClient {
                 } else {
                     results.add(SnmpResult.success(
                             vb.getOid().toString(),
-                            var.toString(),
+                            formatVariableValue(vb.getOid(), var),
                             var.getSyntaxString()
                     ));
                 }
@@ -247,7 +247,7 @@ public class SnmpClient {
                 } else {
                     results.add(SnmpResult.success(
                             vb.getOid().toString(),
-                            var.toString(),
+                            formatVariableValue(vb.getOid(), var),
                             var.getSyntaxString()
                     ));
                 }
@@ -276,27 +276,27 @@ public class SnmpClient {
         List<SnmpResult> results = new ArrayList<>();
         try {
             Target<?> target = createTarget(host, port, protocol, v3Device, community);
-            TableUtils tableUtils = new TableUtils(snmp, new DefaultPDUFactory(
-                    "SNMPv3".equalsIgnoreCase(protocol) ? PDU.GETBULK : PDU.GETNEXT
-            ));
-            tableUtils.setMaxNumRowsPerPDU(snmpConfig.getMaxRepetitions());
+            TreeUtils treeUtils = new TreeUtils(snmp, new DefaultPDUFactory(PDU.GETBULK));
+            OID subtreeRoot = new OID(rootOid);
+            List<TreeEvent> events = treeUtils.getSubtree(target, subtreeRoot);
 
-            OID tableOid = new OID(rootOid);
-            List<TableEvent> events = tableUtils.getTable(target,
-                    new OID[]{tableOid}, null, null);
-
-            for (TableEvent event : events) {
+            for (TreeEvent event : events) {
                 if (event.isError()) {
-                    log.debug("Table walk error for {}: {}", rootOid, event.getErrorMessage());
+                    log.debug("Tree walk error for {}: {}", rootOid, event.getErrorMessage());
                     continue;
                 }
-                for (VariableBinding vb : event.getColumns()) {
+                VariableBinding[] bindings = event.getVariableBindings();
+                if (bindings == null) {
+                    continue;
+                }
+                for (VariableBinding vb : bindings) {
                     if (vb != null) {
                         Variable var = vb.getVariable();
-                        if (!(var instanceof Null)) {
+                        String oid = vb.getOid().toString();
+                        if (!(var instanceof Null) && isWithinSubtree(oid, rootOid)) {
                             results.add(SnmpResult.success(
-                                    vb.getOid().toString(),
-                                    var.toString(),
+                                    oid,
+                                    formatVariableValue(vb.getOid(), var),
                                     var.getSyntaxString()
                             ));
                         }
@@ -342,7 +342,7 @@ public class SnmpClient {
                 } else {
                     results.add(SnmpResult.success(
                             vb.getOid().toString(),
-                            var.toString(),
+                            formatVariableValue(vb.getOid(), var),
                             var.getSyntaxString()
                     ));
                 }
@@ -372,6 +372,38 @@ public class SnmpClient {
             allResults.addAll(get(host, port, batch, protocol, v3Device));
         }
         return allResults;
+    }
+
+    private boolean isWithinSubtree(String oid, String rootOid) {
+        return oid != null && rootOid != null && (oid.equals(rootOid) || oid.startsWith(rootOid + "."));
+    }
+
+    private String formatVariableValue(OID oid, Variable variable) {
+        if (variable == null) {
+            return "";
+        }
+        if (variable instanceof OctetString) {
+            String oidText = oid != null ? oid.toString() : "";
+            if (oidText.startsWith("1.3.6.1.2.1.2.2.1.6.")) {
+                return formatMacAddress(((OctetString) variable).getValue());
+            }
+            return variable.toString();
+        }
+        return variable.toString();
+    }
+
+    private String formatMacAddress(byte[] value) {
+        if (value == null || value.length == 0) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder(value.length * 3 - 1);
+        for (int i = 0; i < value.length; i++) {
+            if (i > 0) {
+                builder.append(':');
+            }
+            builder.append(String.format(Locale.ROOT, "%02X", value[i] & 0xFF));
+        }
+        return builder.toString();
     }
 
     /**
