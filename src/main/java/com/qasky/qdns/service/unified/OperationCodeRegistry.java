@@ -65,6 +65,9 @@ public class OperationCodeRegistry {
         register(new OperationDefinition(10001, "ACL配置", "get_acl_list", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2net_agent:get_acl_list",
                 required("page", "rows")));
+        register(new OperationDefinition(10001, "ACL配置", "replace_all", "vpn-sim-http",
+                "SYNC", "replace_all_acl",
+                required("items")));
 
         register(new OperationDefinition(10002, "路由配置", "add", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2net_agent:add_route_info",
@@ -75,6 +78,9 @@ public class OperationCodeRegistry {
         register(new OperationDefinition(10002, "路由配置", "get_route_list", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2net_agent:get_route_list",
                 required("page", "rows")));
+        register(new OperationDefinition(10002, "路由配置", "replace_all", "vpn-sim-http",
+                "SYNC", "replace_all_route",
+                required("items")));
 
         register(new OperationDefinition(10003, "白名单配置", "add", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2net_agent:add_whitelists",
@@ -91,6 +97,9 @@ public class OperationCodeRegistry {
         register(new OperationDefinition(10003, "白名单配置", "get_whitelist_list", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2net_agent:get_whitelists",
                 required("page", "rows")));
+        register(new OperationDefinition(10003, "白名单配置", "replace_all", "vpn-sim-http",
+                "SYNC", "replace_all_whitelist",
+                required("items")));
 
         register(new OperationDefinition(10004, "NAT配置", "add_snat", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2net_agent:add_snat",
@@ -101,6 +110,9 @@ public class OperationCodeRegistry {
         register(new OperationDefinition(10004, "NAT配置", "get_snat_list", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2net_agent:get_snat_list",
                 required("page", "rows")));
+        register(new OperationDefinition(10004, "NAT配置", "replace_all_snat", "vpn-sim-http",
+                "SYNC", "replace_all_snat",
+                required("items")));
         register(new OperationDefinition(10004, "NAT配置", "add_dnat", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2net_agent:add_dnat",
                 required("name", "protocol", "local_addr", "local_port", "external_addr", "external_port")));
@@ -110,6 +122,9 @@ public class OperationCodeRegistry {
         register(new OperationDefinition(10004, "NAT配置", "get_dnat_list", "ssl-vpn-ipc",
                 "SYNC", "ipc:req:web_agent2net_agent:get_dnat_list",
                 required("page", "rows")));
+        register(new OperationDefinition(10004, "NAT配置", "replace_all_dnat", "vpn-sim-http",
+                "SYNC", "replace_all_dnat",
+                required("items")));
 
         register(new OperationDefinition(10005, "备份", "backup", "vpn-sim-http",
                 "SYNC", "backup", required()));

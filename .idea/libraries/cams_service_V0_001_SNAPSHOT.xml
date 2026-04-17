@@ -1,9 +1,0 @@
-<component name="libraryTable">
-  <library name="cams-service-V0.001-SNAPSHOT">
-    <CLASSES>
-      <root url="jar://$PROJECT_DIR$/src/main/resources/lib/cams-service-V0.001-SNAPSHOT.jar!/" />
-    </CLASSES>
-    <JAVADOC />
-    <SOURCES />
-  </library>
-</component>

@@ -92,6 +92,44 @@ class UnifiedCommandServiceTest {
     }
 
     @Test
+    void shouldRouteReplaceAllAclToVpnSimExecutor() {
+        DeviceCollectorService deviceCollectorService = mock(DeviceCollectorService.class);
+        UnifiedCommandExecutor sslExecutor = mock(UnifiedCommandExecutor.class);
+        UnifiedCommandExecutor vpnSimExecutor = mock(UnifiedCommandExecutor.class);
+        UnifiedTaskStore taskStore = new UnifiedTaskStore(null, "test:task:", 60);
+        OperationCodeRegistry registry = new OperationCodeRegistry();
+
+        DeviceInfo device = buildDevice("dev-1");
+        when(deviceCollectorService.getDeviceById("dev-1")).thenReturn(device);
+        when(sslExecutor.executorKey()).thenReturn("ssl-vpn-ipc");
+        when(vpnSimExecutor.executorKey()).thenReturn("vpn-sim-http");
+        when(vpnSimExecutor.execute(any(DeviceInfo.class), any(UnifiedCommandRequest.class), any(OperationCodeRegistry.OperationDefinition.class)))
+                .thenReturn(UnifiedCommandExecutor.ExecutionResult.success("replace ok", Collections.singletonMap("action", "replace_all_acl")));
+
+        UnifiedCommandService service = new UnifiedCommandService(
+                deviceCollectorService,
+                registry,
+                taskStore,
+                Arrays.asList(sslExecutor, vpnSimExecutor),
+                directExecutor()
+        );
+
+        UnifiedCommandRequest request = new UnifiedCommandRequest();
+        request.setDeviceId("dev-1");
+        request.setCode(10001);
+        request.setOperation("replace_all");
+        request.setPayload(Collections.<String, Object>singletonMap("items", Collections.<Object>singletonList(requiredAclPayload())));
+
+        UnifiedCommandResponseData response = service.executeCommand(request);
+
+        assertEquals("SYNC", response.getMode());
+        assertEquals("SUCCESS", response.getStatus());
+        assertEquals("replace ok", response.getStatusMessage());
+        verify(vpnSimExecutor).execute(eq(device), any(UnifiedCommandRequest.class), any(OperationCodeRegistry.OperationDefinition.class));
+        verify(sslExecutor, never()).execute(any(DeviceInfo.class), any(UnifiedCommandRequest.class), any(OperationCodeRegistry.OperationDefinition.class));
+    }
+
+    @Test
     void shouldRejectUnknownCode() {
         UnifiedCommandService service = new UnifiedCommandService(
                 mock(DeviceCollectorService.class),
@@ -128,6 +166,26 @@ class UnifiedCommandServiceTest {
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> service.executeCommand(request));
         assertTrue(exception.getMessage().contains("version"));
+    }
+
+    @Test
+    void shouldRejectMissingItemsForReplaceAllAcl() {
+        UnifiedCommandService service = new UnifiedCommandService(
+                mock(DeviceCollectorService.class),
+                new OperationCodeRegistry(),
+                new UnifiedTaskStore(null, "test:task:", 60),
+                Collections.<UnifiedCommandExecutor>emptyList(),
+                directExecutor()
+        );
+
+        UnifiedCommandRequest request = new UnifiedCommandRequest();
+        request.setDeviceId("dev-1");
+        request.setCode(10001);
+        request.setOperation("replace_all");
+        request.setPayload(new LinkedHashMap<String, Object>());
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> service.executeCommand(request));
+        assertTrue(exception.getMessage().contains("items"));
     }
 
     @Test

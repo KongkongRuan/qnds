@@ -28,6 +28,8 @@ import java.util.*;
 public class SnmpClient {
 
     private static final Logger log = LoggerFactory.getLogger(SnmpClient.class);
+    private static final String IF_PHYS_ADDRESS_PREFIX = "1.3.6.1.2.1.2.2.1.6.";
+    private static final String VPN_MAC_ADDRESS_OID = "1.3.6.1.4.1.99999.1.5.0";
 
     private final SnmpConfig snmpConfig;
     private Snmp snmp;
@@ -384,26 +386,23 @@ public class SnmpClient {
         }
         if (variable instanceof OctetString) {
             String oidText = oid != null ? oid.toString() : "";
-            if (oidText.startsWith("1.3.6.1.2.1.2.2.1.6.")) {
-                return formatMacAddress(((OctetString) variable).getValue());
+            if (isMacAddressOid(oidText)) {
+                return formatMacAddress((OctetString) variable);
             }
             return variable.toString();
         }
         return variable.toString();
     }
 
-    private String formatMacAddress(byte[] value) {
-        if (value == null || value.length == 0) {
+    private boolean isMacAddressOid(String oidText) {
+        return oidText.startsWith(IF_PHYS_ADDRESS_PREFIX) || VPN_MAC_ADDRESS_OID.equals(oidText);
+    }
+
+    private String formatMacAddress(OctetString value) {
+        if (value == null) {
             return "";
         }
-        StringBuilder builder = new StringBuilder(value.length * 3 - 1);
-        for (int i = 0; i < value.length; i++) {
-            if (i > 0) {
-                builder.append(':');
-            }
-            builder.append(String.format(Locale.ROOT, "%02X", value[i] & 0xFF));
-        }
-        return builder.toString();
+        return MacAddressFormatter.format(value.toString(), value.getValue());
     }
 
     /**

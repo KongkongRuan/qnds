@@ -794,7 +794,7 @@
     <!-- SSL VPN Debug -->
     <div class="panel" id="panel-sslVpnDebug">
         <div class="alert alert-info">
-            这里单独调试 <code>QDNS -> /api/unified/command</code> 已开放的 SSL VPN 配置类能力，当前覆盖 <code>10000-10004</code> 的写接口与查询接口。
+            这里单独调试 <code>QDNS -> /api/unified/command</code> 已开放的 SSL VPN 配置类能力，当前覆盖 <code>10000-10004</code> 的写接口、查询接口，以及新增的整体替换类接口。
             <code>deviceId</code> 仍然表示 QDMS 平台设备 ID，QDNS 会根据 Redis / 节点缓存中的 <code>deviceIp + devicePort</code> 去定位 VPN-Sim 设备。
             查询类能力也继续使用 <code>POST /api/unified/command</code>，分页、名称等查询条件统一放在 <code>payload</code> 中；证书原子能力仍建议使用独立的 <code>证书管理</code> 页签调试。
         </div>
@@ -858,7 +858,7 @@
                 <div class="form-group" style="margin-top:12px;">
                     <label>操作说明</label>
                     <div class="qdms-note" id="sslVpnDebugNote">
-                        当前页面已补齐 QDNS 已开放的 SSL VPN 配置写接口和查询接口，不改后端协议，只补独立调试入口。
+                        当前页面已补齐 QDNS 已开放的 SSL VPN 配置写接口、查询接口和整体替换接口，不改后端协议，只补独立调试入口。
                     </div>
                 </div>
 
@@ -1708,7 +1708,7 @@
         },
         '10001': {
             capabilityName: 'ACL配置',
-            note: '这一组用于 ACL 新增、删除和列表查询。',
+            note: '这一组用于 ACL 新增、删除、整体替换和列表查询。',
             operations: [
                 {
                     operation: 'add',
@@ -1747,12 +1747,43 @@
                         rows: 20
                     },
                     note: '分页查询 ACL 列表。分页参数统一放在 payload 中。'
+                },
+                {
+                    operation: 'replace_all',
+                    label: '整体替换ACL',
+                    downstreamAction: 'replace_all_acl',
+                    requiredFields: ['items'],
+                    payload: {
+                        items: [
+                            {
+                                name: 'acl-001',
+                                action: 'allow',
+                                protocol: 'tcp',
+                                src_addr: '192.168.1.0/24',
+                                dst_addr: '172.16.0.0/16',
+                                time_limit_state: 1,
+                                begin_time: '00:00',
+                                end_time: '23:59'
+                            },
+                            {
+                                name: 'acl-002',
+                                action: 'deny',
+                                protocol: 'udp',
+                                src_addr: '10.10.0.0/16',
+                                dst_addr: '172.20.0.0/16',
+                                time_limit_state: 0,
+                                begin_time: '00:00',
+                                end_time: '23:59'
+                            }
+                        ]
+                    },
+                    note: '一次传入完整 ACL 列表。QDNS 会先读取 VPN-Sim 当前完整 SSL VPN 状态，替换 ACL 段后整体 restore，并只提交一次。'
                 }
             ]
         },
         '10002': {
             capabilityName: '路由配置',
-            note: '这一组用于静态路由新增、删除和列表查询。',
+            note: '这一组用于静态路由新增、删除、整体替换和列表查询。',
             operations: [
                 {
                     operation: 'add',
@@ -1792,12 +1823,39 @@
                         rows: 20
                     },
                     note: '分页查询静态路由列表。'
+                },
+                {
+                    operation: 'replace_all',
+                    label: '整体替换路由',
+                    downstreamAction: 'replace_all_route',
+                    requiredFields: ['items'],
+                    payload: {
+                        items: [
+                            {
+                                dst_addr: '10.10.0.0',
+                                mask: '255.255.0.0',
+                                next_ip: '192.168.1.254',
+                                interface_name: 'eth1',
+                                weight: 10,
+                                distance: 1
+                            },
+                            {
+                                dst_addr: '10.20.0.0',
+                                mask: '255.255.0.0',
+                                next_ip: '192.168.1.253',
+                                interface_name: 'eth2',
+                                weight: 20,
+                                distance: 1
+                            }
+                        ]
+                    },
+                    note: '一次传入完整静态路由列表。QDNS 会替换路由段后整体 restore，不再逐条 add/delete。'
                 }
             ]
         },
         '10003': {
             capabilityName: '白名单配置',
-            note: '这一组用于白名单新增、删除、状态切换和查询。',
+            note: '这一组用于白名单新增、删除、状态切换、整体替换和查询。',
             operations: [
                 {
                     operation: 'add',
@@ -1851,12 +1909,35 @@
                         rows: 20
                     },
                     note: '分页查询白名单条目列表。'
+                },
+                {
+                    operation: 'replace_all',
+                    label: '整体替换白名单',
+                    downstreamAction: 'replace_all_whitelist',
+                    requiredFields: ['items'],
+                    payload: {
+                        items: [
+                            {
+                                name: 'whitelist-001',
+                                type: 0,
+                                addr: '10.10.10.10',
+                                state: 0
+                            },
+                            {
+                                name: 'whitelist-002',
+                                type: 1,
+                                addr: '10.10.20.0/24',
+                                state: 0
+                            }
+                        ]
+                    },
+                    note: '一次传入完整白名单条目列表。这里的 replace payload 只放 items，不包含 whitelist_state 总开关。'
                 }
             ]
         },
         '10004': {
             capabilityName: 'NAT配置',
-            note: '这一组用于 SNAT / DNAT 的新增、删除和列表查询。',
+            note: '这一组用于 SNAT / DNAT 的新增、删除、整体替换和列表查询。',
             operations: [
                 {
                     operation: 'add_snat',
@@ -1890,6 +1971,27 @@
                         rows: 20
                     },
                     note: '分页查询 SNAT 列表。'
+                },
+                {
+                    operation: 'replace_all_snat',
+                    label: '整体替换SNAT',
+                    downstreamAction: 'replace_all_snat',
+                    requiredFields: ['items'],
+                    payload: {
+                        items: [
+                            {
+                                name: 'snat-001',
+                                src_addr: '172.16.0.0/16',
+                                dst_addr: '10.0.0.0/8'
+                            },
+                            {
+                                name: 'snat-002',
+                                src_addr: '192.168.20.0/24',
+                                dst_addr: '172.30.0.0/16'
+                            }
+                        ]
+                    },
+                    note: '一次传入完整 SNAT 列表。QDNS 只替换 SNAT 段并整体 restore，不影响 DNAT 段。'
                 },
                 {
                     operation: 'add_dnat',
@@ -1926,6 +2028,33 @@
                         rows: 20
                     },
                     note: '分页查询 DNAT 列表。'
+                },
+                {
+                    operation: 'replace_all_dnat',
+                    label: '整体替换DNAT',
+                    downstreamAction: 'replace_all_dnat',
+                    requiredFields: ['items'],
+                    payload: {
+                        items: [
+                            {
+                                name: 'dnat-001',
+                                protocol: 'tcp',
+                                local_addr: '192.168.1.10',
+                                local_port: 443,
+                                external_addr: '10.0.0.10',
+                                external_port: 8443
+                            },
+                            {
+                                name: 'dnat-002',
+                                protocol: 'udp',
+                                local_addr: '192.168.1.20',
+                                local_port: 53,
+                                external_addr: '10.0.0.20',
+                                external_port: 8053
+                            }
+                        ]
+                    },
+                    note: '一次传入完整 DNAT 列表。QDNS 只替换 DNAT 段并整体 restore，不影响 SNAT 段。'
                 }
             ]
         }
